@@ -772,7 +772,7 @@ In development and SQLite test runs, tables may still be created via `Base.metad
 - Root `Dockerfile` — full-repo build (Python deps + Next.js build) for platform uploads.
 - `Dockerfile.backend` — API-only image on `python:3.11-slim`.
 - `frontend/Dockerfile` — Next.js app (`npm ci && npm run build`, `npm run start`).
-- `docker-compose.yml` — backend, frontend, **PostgreSQL 16**, and **Redis 7** with healthchecks and named volumes for `data/` and `chroma_db/`.
+- `docker-compose.yml` — backend, **Celery worker**, frontend, **PostgreSQL 16**, and **Redis 7** with healthchecks and named volumes for `data/` and `chroma_db/`.
 
 ### API additions
 
@@ -786,7 +786,7 @@ In development and SQLite test runs, tables may still be created via `Base.metad
 For production:
 
 1. Run `alembic upgrade head` against your PostgreSQL database and set `DATABASE_URL` accordingly.
-2. Use the Compose `postgres` and `redis` services (or managed equivalents) and set `RATE_LIMIT_STORAGE_URI=redis://host:6379/0`.
+2. Use the Compose `postgres`, `redis`, and `worker` services (or managed equivalents). Set `RATE_LIMIT_STORAGE_URI=redis://host:6379/0` and `CELERY_BROKER_URL=redis://host:6379/1`.
 3. Set `APP_ENV=production` so `COOKIE_SECURE` defaults to `true`; ensure HTTPS termination is in place (the cookies will not be sent over plain HTTP).
 4. If running behind a reverse proxy, set `TRUST_PROXY_HEADERS=true` and configure `PROXY_TRUSTED_HOSTS` to the upstream addresses so `X-Forwarded-For` is honored for SlowAPI's IP keys.
 5. Choose a storage backend: keep `STORAGE_BACKEND=local` plus a persistent volume, or switch to `STORAGE_BACKEND=s3` and supply S3 credentials.
@@ -795,7 +795,26 @@ For production:
 
 ### Infrastructure overview
 
-This is to and its not completed yet
+```text
+Browser -> Next.js frontend -> FastAPI API
+                              -> PostgreSQL (users, documents, jobs, audit)
+                              -> Redis (rate limits + Celery broker)
+                              -> Celery worker (parse/chunk/embed)
+                              -> ChromaDB (per-user vectors)
+                              -> Local FS or S3 (versioned document blobs)
+```
+
+### Testing matrix
+
+| Layer | Command | Notes |
+|-------|---------|-------|
+| Unit | `pytest -q -m "not integration"` | SQLite, inline ingestion |
+| Integration | `pytest -q -m integration` | Requires Postgres + Redis |
+| Migrations | `alembic upgrade head` | Run against target database |
+| Frontend build | `cd frontend && npm run build` | Next.js production build |
+| E2E | `cd frontend && npm run test:e2e` | Playwright (login/redirect smoke) |
+
+Operational docs: [`docs/deployment-runbook.md`](docs/deployment-runbook.md), [`docs/secrets-runbook.md`](docs/secrets-runbook.md), [`docs/incident-runbook.md`](docs/incident-runbook.md), [`docs/billing-runbook.md`](docs/billing-runbook.md).
 
 ---
 
