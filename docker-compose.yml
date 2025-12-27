@@ -27,6 +27,20 @@ services:
       timeout: 5s
       retries: 5
 
+  minio:
+    profiles: ["s3"]
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    container_name: omnidocs-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - omnidocs_minio:/data
+
   backend:
     build:
       context: .
@@ -37,6 +51,8 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://omnidocs:omnidocs@postgres:5432/omnidocs
       RATE_LIMIT_STORAGE_URI: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
     ports:
       - "8000:8000"
     volumes:
@@ -47,6 +63,31 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: omnidocs-worker
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://omnidocs:omnidocs@postgres:5432/omnidocs
+      RATE_LIMIT_STORAGE_URI: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    command: celery -A api.celery_app worker --loglevel=info
+    volumes:
+      - omnidocs_data:/app/data
+      - omnidocs_chroma:/app/chroma_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
     restart: unless-stopped
 
   frontend:
@@ -68,3 +109,4 @@ volumes:
   omnidocs_data:
   omnidocs_chroma:
   omnidocs_pgdata:
+  omnidocs_minio:
