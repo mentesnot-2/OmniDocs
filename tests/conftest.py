@@ -3,6 +3,7 @@ import os
 os.environ.setdefault("DATABASE_URL", "sqlite:///./tests_bootstrap.db")
 os.environ.setdefault("JWT_SECRET_KEY", "x" * 32)
 os.environ.setdefault("GEMINI_API_KEY", "test-gemini-api-key")
+os.environ.setdefault("INGESTION_RUN_INLINE", "true")
 
 
 import pytest

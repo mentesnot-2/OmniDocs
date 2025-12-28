@@ -12,16 +12,10 @@ def test_delete_document_removes_registry(client, db_session, make_user, monkeyp
         json={"email": user.email, "password": user._raw_password},
     )
 
-    def run_job_sync(job_id):
-        monkeypatch.setattr(
-            "api.services.ingestion_jobs.get_embedding_generator",
-            lambda: DummyEmbeeddingGenerator(),
-        )
-        from api.services.ingestion_jobs import process_ingestion_job
-
-        process_ingestion_job(job_id)
-
-    monkeypatch.setattr("api.routes.documents.process_ingestion_job", run_job_sync)
+    monkeypatch.setattr(
+        "api.services.ingestion_jobs.get_embedding_generator",
+        lambda: DummyEmbeeddingGenerator(),
+    )
 
     upload = client.post(
         "/documents/upload",

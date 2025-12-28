@@ -119,6 +119,16 @@ def test_subscription_deleted_applies_then_duplicate(client, db_session, make_us
     assert dup.json()["duplicate"] is True
 
 
+def test_webhook_rejects_invalid_signature(client, monkeypatch):
+    def _raise(*args, **kwargs):
+        raise ValueError("Invalid signature")
+
+    monkeypatch.setattr("api.routes.billing.stripe.Webhook.construct_event", _raise)
+
+    response = client.post("/billing/webhook", content=b"{}", headers={"stripe-signature": "bad"})
+    assert response.status_code == 400
+
+
 def test_unknown_event_type_still_records_idempotency_row(client, db_session, monkeypatch):
     event = {
         "id": "evt_unknown_1",
