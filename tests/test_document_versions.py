@@ -16,17 +16,10 @@ def test_upload_registers_document_version(client, db_session, make_user, monkey
     from tests.conftest import DummyEmbeeddingGenerator
 
     user = make_user()
-
-    def run_job_sync(job_id):
-        monkeypatch.setattr(
-            "api.services.ingestion_jobs.get_embedding_generator",
-            lambda: DummyEmbeeddingGenerator(),
-        )
-        from api.services.ingestion_jobs import process_ingestion_job
-
-        process_ingestion_job(job_id)
-
-    monkeypatch.setattr("api.routes.documents.process_ingestion_job", run_job_sync)
+    monkeypatch.setattr(
+        "api.services.ingestion_jobs.get_embedding_generator",
+        lambda: DummyEmbeeddingGenerator(),
+    )
 
     _login(client, user)
     content = b"Sample document text for versioning test.\n"
@@ -41,9 +34,35 @@ def test_upload_registers_document_version(client, db_session, make_user, monkey
 
     versions = client.get("/documents/notes.txt/versions")
     assert versions.status_code == 200
-    assert len(versions.json()["versions"]) >= 1
+    body = versions.json()["versions"]
+    assert len(body) >= 1
+    assert body[0]["storage_key"]
 
     document = db_session.query(Document).filter(Document.user_id == user.id).one()
-    assert document.filename == "notes.txt"
     version = db_session.query(DocumentVersion).filter(DocumentVersion.document_id == document.id).one()
     assert version.version_number == 1
+    assert version.storage_key == body[0]["storage_key"]
+
+
+def test_reupload_creates_second_version_with_distinct_storage_key(client, db_session, make_user, monkeypatch):
+    from tests.conftest import DummyEmbeeddingGenerator
+
+    user = make_user()
+    monkeypatch.setattr(
+        "api.services.ingestion_jobs.get_embedding_generator",
+        lambda: DummyEmbeeddingGenerator(),
+    )
+    _login(client, user)
+
+    for content in (b"first version", b"second version"):
+        client.post(
+            "/documents/upload",
+            files={"file": ("notes.txt", io.BytesIO(content), "text/plain")},
+        )
+
+    versions = client.get("/documents/notes.txt/versions").json()["versions"]
+    assert len(versions) == 2
+    keys = {v["storage_key"] for v in versions}
+    assert len(keys) == 2
+    numbers = {v["version"] for v in versions}
+    assert numbers == {1, 2}
