@@ -42,5 +42,9 @@ alembic
 stripe
 boto3
 
+# Background jobs
+celery[redis]
+
 # Testing / tooling
 pytest
+moto[s3]
