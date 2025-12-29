@@ -9,10 +9,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from api.models import Document, DocumentVersion
-
-
-def _version_storage_key(user_id: int, filename: str, version_number: int) -> str:
-    return f"{user_id}/versions/{filename}/v{version_number}"
+from api.services.storage_backend import build_version_storage_key, get_storage_backend
 
 
 def register_pending_version(
@@ -22,8 +19,9 @@ def register_pending_version(
     filename: str,
     size_bytes: int,
     content: bytes,
+    fileobj,
 ) -> tuple[Document, DocumentVersion]:
-    """Create or bump document version row before indexing completes."""
+    """Create or bump document version row and persist bytes to versioned storage."""
     content_hash = hashlib.sha256(content).hexdigest()
     document = (
         db.query(Document)
@@ -41,7 +39,12 @@ def register_pending_version(
         .count()
         + 1
     )
-    storage_key = _version_storage_key(user_id, filename, next_version)
+    storage_key = build_version_storage_key(user_id, document.id, next_version, filename)
+    storage = get_storage_backend()
+    if hasattr(fileobj, "seek"):
+        fileobj.seek(0)
+    storage.save_fileobj_by_key(storage_key, fileobj)
+
     version = DocumentVersion(
         document_id=document.id,
         version_number=next_version,
@@ -127,6 +130,7 @@ def get_versions(db: Session, user_id: int, filename: str) -> list[dict[str, Any
             "size_bytes": v.size_bytes,
             "status": v.status,
             "content_hash": v.content_hash,
+            "storage_key": v.storage_key,
             "created_at": v.created_at.isoformat() if v.created_at else None,
             "is_current": v.id == document.current_version_id,
         }
@@ -134,15 +138,29 @@ def get_versions(db: Session, user_id: int, filename: str) -> list[dict[str, Any
     ]
 
 
-def delete_document_record(db: Session, user_id: int, filename: str) -> bool:
+def get_version_storage_keys(db: Session, user_id: int, filename: str) -> list[str]:
     document = (
         db.query(Document)
         .filter(Document.user_id == user_id, Document.filename == filename)
         .first()
     )
     if document is None:
-        return False
+        return []
+    versions = db.query(DocumentVersion).filter(DocumentVersion.document_id == document.id).all()
+    return [v.storage_key for v in versions]
+
+
+def delete_document_record(db: Session, user_id: int, filename: str) -> list[str]:
+    document = (
+        db.query(Document)
+        .filter(Document.user_id == user_id, Document.filename == filename)
+        .first()
+    )
+    if document is None:
+        return []
+    versions = db.query(DocumentVersion).filter(DocumentVersion.document_id == document.id).all()
+    keys = [v.storage_key for v in versions]
     db.query(DocumentVersion).filter(DocumentVersion.document_id == document.id).delete()
     db.delete(document)
     db.commit()
-    return True
+    return keys
