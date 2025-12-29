@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -38,6 +39,16 @@ def get_job_for_user(db: Session, job_id: int, user_id: int) -> IngestionJob | N
     )
 
 
+def enqueue_ingestion_job(job_id: int) -> None:
+    """Dispatch ingestion to Celery, or run inline when configured for tests."""
+    if os.getenv("INGESTION_RUN_INLINE", "").lower() in ("1", "true", "yes"):
+        process_ingestion_job(job_id)
+        return
+    from api.tasks.ingestion import process_ingestion_job_task
+
+    process_ingestion_job_task.delay(job_id)
+
+
 def process_ingestion_job(job_id: int) -> None:
     """Parse, chunk, embed, and index a stored document version."""
     db = SessionLocal()
@@ -68,8 +79,8 @@ def process_ingestion_job(job_id: int) -> None:
         storage = get_storage_backend()
 
         try:
-            file_bytes = storage.get_file_bytes(user_id, filename)
-            local_path = storage.get_local_path(user_id, filename)
+            file_bytes = storage.get_bytes_by_key(version.storage_key)
+            local_path = storage.get_local_path_by_key(version.storage_key)
             ingest_path = local_path if local_path is not None else _write_temp_bytes(file_bytes, filename)
 
             parsed = ingest_document(ingest_path)
@@ -91,6 +102,8 @@ def process_ingestion_job(job_id: int) -> None:
                     "source_file": c.source_file,
                     "chunk_index": c.chunk_index,
                     "user_id": str(user_id),
+                    "document_id": str(document.id),
+                    "version_number": str(version.version_number),
                     **{k: str(v) for k, v in c.metadata.items()},
                 }
                 for c in chunks
@@ -111,9 +124,9 @@ def process_ingestion_job(job_id: int) -> None:
             job.finished_at = datetime.now(timezone.utc)
             db.commit()
             try:
-                storage.delete_file(user_id, filename)
+                storage.delete_by_key(version.storage_key)
             except Exception:
-                logger.warning("Failed to clean up file after ingestion failure")
+                logger.warning("Failed to clean up storage after ingestion failure")
     finally:
         db.close()
 

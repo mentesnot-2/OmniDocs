@@ -3,7 +3,7 @@
 import urllib.parse
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -20,7 +20,7 @@ from api.services.document_registry import (
 )
 from api.services.file_validation import validate_uploaded_file_content
 from api.services.ingestion_file import FileTooLargeError, write_upload_to_temp_file
-from api.services.ingestion_jobs import create_ingestion_job, get_job_for_user, process_ingestion_job
+from api.services.ingestion_jobs import create_ingestion_job, enqueue_ingestion_job, get_job_for_user
 from api.services.runtime_services import get_answer_generator, get_retriever
 from api.services.storage_backend import get_storage_backend
 from api.services.usage_limits import (
@@ -152,16 +152,20 @@ def delete_document(
     current_user: User = Depends(get_current_user),
 ):
     safe_filename = _safe_filename(filename)
-    storage = get_storage_backend()
-    if not storage.file_exists(current_user.id, safe_filename):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"File {safe_filename} not found.",
-        )
+    storage_keys = delete_document_record(db, current_user.id, safe_filename)
+    if not storage_keys:
+        storage = get_storage_backend()
+        if not storage.file_exists(current_user.id, safe_filename):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"File {safe_filename} not found.",
+            )
+        storage.delete_file(current_user.id, safe_filename)
+    else:
+        storage = get_storage_backend()
+        storage.delete_keys(storage_keys)
     store = ChromaVectorStore(user_id=str(current_user.id))
     store.delete_by_source(safe_filename)
-    storage.delete_file(current_user.id, safe_filename)
-    delete_document_record(db, current_user.id, safe_filename)
     return {"message": "Document deleted successfully.", "filename": safe_filename}
 
 
@@ -169,7 +173,6 @@ def delete_document(
 @limiter.limit("10/minute")
 async def upload(
     request: Request,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     _csrf: None = Depends(require_csrf),
     db: Session = Depends(get_db),
@@ -205,9 +208,8 @@ async def upload(
         except ValueError:
             logger.warning(f"Invalid content-length header for upload: {content_length}")
 
-    storage = get_storage_backend()
-    storage_saved = False
     temp_upload_path: Path | None = None
+    version_storage_key: str | None = None
 
     try:
         try:
@@ -228,22 +230,22 @@ async def upload(
         logger.info(f"Document {file_log} uploaded. Size: {total_bytes / (1024 * 1024):.2f} MB.")
 
         with temp_upload_path.open("rb") as upload_stream:
-            storage.save_fileobj(current_user.id, safe_filename, upload_stream)
-        storage_saved = True
+            _, version = register_pending_version(
+                db,
+                user_id=current_user.id,
+                filename=safe_filename,
+                size_bytes=total_bytes,
+                content=content,
+                fileobj=upload_stream,
+            )
+        version_storage_key = version.storage_key
 
-        _, version = register_pending_version(
-            db,
-            user_id=current_user.id,
-            filename=safe_filename,
-            size_bytes=total_bytes,
-            content=content,
-        )
         job = create_ingestion_job(
             db,
             user_id=current_user.id,
             document_version_id=version.id,
         )
-        background_tasks.add_task(process_ingestion_job, job.id)
+        enqueue_ingestion_job(job.id)
 
         return {
             "message": "Document uploaded; indexing started.",
@@ -253,9 +255,9 @@ async def upload(
             "status": job.status,
         }
     except HTTPException:
-        if storage_saved:
+        if version_storage_key:
             try:
-                storage.delete_file(current_user.id, safe_filename)
+                get_storage_backend().delete_by_key(version_storage_key)
             except Exception as cleanup_exc:
                 logger.warning(f"Cleanup failed for {file_log}: {cleanup_exc}")
         raise
