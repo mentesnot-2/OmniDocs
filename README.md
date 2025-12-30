@@ -755,16 +755,38 @@ Coverage reporting is not configured yet; see `NEEDS_IMPROVEMENT.md`.
 
 ## Deployment
 
-There is no committed CI/CD pipeline yet (the repo contains no `.github/workflows/` or other CI definitions). Planned automation on the way.
+GitHub Actions CI (`.github/workflows/ci.yml`) runs Ruff, pytest, and a Next.js production build on push/PR.
+
+### Database migrations
+
+Production and staging should apply schema changes with Alembic:
+
+```bash
+alembic upgrade head
+```
+
+In development and SQLite test runs, tables may still be created via `Base.metadata.create_all`. In production (`APP_ENV=production` with PostgreSQL), run migrations instead of relying on `create_all`.
 
 ### Container deployment
 
-`Dockerfile.backend` builds a `python:3.11-slim` image, installs the locked `requirements.txt`, and runs `uvicorn api.main:app --host 0.0.0.0 --port 8000`. `frontend/Dockerfile` builds the Next.js app with `npm ci && npm run build` and starts `npm run start`. `docker-compose.yml` wires the two with named volumes for `data/` and `chroma_db/`.
+- Root `Dockerfile` — full-repo build (Python deps + Next.js build) for platform uploads.
+- `Dockerfile.backend` — API-only image on `python:3.11-slim`.
+- `frontend/Dockerfile` — Next.js app (`npm ci && npm run build`, `npm run start`).
+- `docker-compose.yml` — backend, frontend, **PostgreSQL 16**, and **Redis 7** with healthchecks and named volumes for `data/` and `chroma_db/`.
+
+### API additions
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /health/ready` | DB, Chroma path, and storage readiness |
+| `GET /documents/{filename}/versions` | Document version history |
+| `GET /documents/jobs/{job_id}` | Background ingestion job status |
+| `GET /admin/audit-logs` | Paginated admin audit trail |
 
 For production:
 
-1. Provision a managed PostgreSQL (or self-host) and set `DATABASE_URL` accordingly.
-2. Provision Redis and set `RATE_LIMIT_STORAGE_URI=redis://host:6379/0` so rate limits are coherent across replicas.
+1. Run `alembic upgrade head` against your PostgreSQL database and set `DATABASE_URL` accordingly.
+2. Use the Compose `postgres` and `redis` services (or managed equivalents) and set `RATE_LIMIT_STORAGE_URI=redis://host:6379/0`.
 3. Set `APP_ENV=production` so `COOKIE_SECURE` defaults to `true`; ensure HTTPS termination is in place (the cookies will not be sent over plain HTTP).
 4. If running behind a reverse proxy, set `TRUST_PROXY_HEADERS=true` and configure `PROXY_TRUSTED_HOSTS` to the upstream addresses so `X-Forwarded-For` is honored for SlowAPI's IP keys.
 5. Choose a storage backend: keep `STORAGE_BACKEND=local` plus a persistent volume, or switch to `STORAGE_BACKEND=s3` and supply S3 credentials.

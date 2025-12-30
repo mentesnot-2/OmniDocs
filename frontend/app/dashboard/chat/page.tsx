@@ -269,9 +269,20 @@ export default function ChatPage() {
                         <div className="rounded-2xl rounded-bl-md bg-white/5 border border-white/5 px-4 py-3">
                           <p className="text-slate-200 whitespace-pre-wrap text-[15px] leading-relaxed">{item.answer}</p>
                           {item.sources && item.sources.length > 0 && (
-                            <p className="mt-3 text-xs text-slate-500 pt-3 border-t border-white/5">
-                              Sources: {item.sources.join(", ")}
-                            </p>
+                            <div className="mt-3 pt-3 border-t border-white/5">
+                              <p className="text-xs text-slate-500 mb-2">Sources</p>
+                              <div className="flex flex-wrap gap-2">
+                                {item.sources.map((source) => (
+                                  <a
+                                    key={source}
+                                    href={`/dashboard?doc=${encodeURIComponent(source)}`}
+                                    className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-300 hover:bg-emerald-500/20"
+                                  >
+                                    {source}
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
                       </div>

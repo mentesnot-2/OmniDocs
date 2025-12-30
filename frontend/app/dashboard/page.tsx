@@ -2,7 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { postFormData, getJson, postJson, deleteRequest } from "@/lib/api";
+import {
+  type DocumentListItem,
+  deleteRequest,
+  getJson,
+  pollIngestionJob,
+  postFormData,
+  postJson,
+} from "@/lib/api";
 
 function formatDate(timestamp: number) {
   const d = new Date(timestamp * 1000);
@@ -43,7 +50,8 @@ export default function DashboardPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
-  const [documents, setDocuments] = useState<{ filename: string; uploaded_at: number }[]>([]);
+  const [documents, setDocuments] = useState<DocumentListItem[]>([]);
+  const [uploadStage, setUploadStage] = useState<"idle" | "uploading" | "indexing">("idle");
   const [deleting, setDeleting] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [usage, setUsage] = useState<UsageMetrics | null>(null);
@@ -67,7 +75,7 @@ export default function DashboardPage() {
     try {
       const me = await getJson<{ id: number; email: string; is_admin: boolean }>("/auth/me");
       setUser(me);
-      const docsRes = await getJson<{ documents: { filename: string; uploaded_at: number }[] }>("/documents");
+      const docsRes = await getJson<{ documents: DocumentListItem[] }>("/documents");
       setDocuments(docsRes.documents || []);
       await loadUsage();
     } catch(err:any) {
@@ -121,19 +129,32 @@ export default function DashboardPage() {
     setUploadError(null);
     setUploadSuccess(null);
     setUploading(true);
+    setUploadStage("uploading");
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await postFormData("/documents/upload", formData);
-      setUploadSuccess(`"${res.file_name}" indexed successfully.`);
+      const res = (await postFormData("/documents/upload", formData)) as {
+        file_name: string;
+        job_id?: number;
+        version?: number;
+      };
+      setUploadStage("indexing");
+      if (res.job_id) {
+        const job = await pollIngestionJob(res.job_id);
+        if (job.status === "failed") {
+          throw new Error(job.error_message || "Indexing failed");
+        }
+      }
+      setUploadSuccess(`"${res.file_name}" indexed successfully (v${res.version ?? 1}).`);
       setFile(null);
-      const docsRes = await getJson<{ documents: { filename: string; uploaded_at: number }[] }>("/documents");
+      const docsRes = await getJson<{ documents: DocumentListItem[] }>("/documents");
       setDocuments(docsRes.documents || []);
       await loadUsage();
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
+      setUploadStage("idle");
     }
   }
 
@@ -298,7 +319,7 @@ export default function DashboardPage() {
                 {uploading ? (
                   <span className="flex items-center gap-2">
                     <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-900/30 border-t-slate-900" />
-                    Indexing…
+                    {uploadStage === "uploading" ? "Uploading…" : "Indexing…"}
                   </span>
                 ) : (
                   "Index document"
@@ -349,7 +370,9 @@ export default function DashboardPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-white">{doc.filename}</p>
-                    <p className="text-xs text-slate-500">{formatDate(doc.uploaded_at)}</p>
+                    <p className="text-xs text-slate-500">
+                      {formatDate(doc.uploaded_at)} · v{doc.version ?? 1} · {doc.status ?? "ready"}
+                    </p>
                   </div>
                   <button
                     type="button"
