@@ -1,4 +1,32 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: omnidocs-postgres
+    environment:
+      POSTGRES_USER: omnidocs
+      POSTGRES_PASSWORD: omnidocs
+      POSTGRES_DB: omnidocs
+    ports:
+      - "5432:5432"
+    volumes:
+      - omnidocs_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U omnidocs -d omnidocs"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: omnidocs-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: .
@@ -6,11 +34,19 @@ services:
     container_name: omnidocs-backend
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://omnidocs:omnidocs@postgres:5432/omnidocs
+      RATE_LIMIT_STORAGE_URI: redis://redis:6379/0
     ports:
       - "8000:8000"
     volumes:
       - omnidocs_data:/app/data
       - omnidocs_chroma:/app/chroma_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -31,3 +67,4 @@ services:
 volumes:
   omnidocs_data:
   omnidocs_chroma:
+  omnidocs_pgdata:
