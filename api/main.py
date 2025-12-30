@@ -3,48 +3,53 @@ OmniDocs FastAPI backend.
 Run: uvicorn api.main:app --reload
 """
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
-from api.routes import auth, documents, chat, admin, usage,billing
-from api.database import engine,Base
-from api.models import StripeProcessedEvent  # noqa: F401 — ensures stripe_processed_events table in Base.metadata.create_all
-from api.database import get_db
-from api.utils.logging_config import logger
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+from api.database import Base, engine, get_db
+from api.models import StripeProcessedEvent  # noqa: F401
 from api.rate_limiter import limiter
+from api.routes import admin, auth, billing, chat, documents, health, usage
+from api.services.runtime_services import (
+    get_answer_generator,
+    get_embedding_generator,
+    get_retriever,
+)
+from api.utils.logging_config import logger
 from config import (
-    ensure_dirs,
-    CORS_ALLOWED_ORIGINS,
-    CORS_ALLOWED_METHODS,
+    APP_ENV,
     CORS_ALLOWED_HEADERS,
+    CORS_ALLOWED_METHODS,
+    CORS_ALLOWED_ORIGINS,
+    PROXY_TRUSTED_HOSTS,
     TRUST_PROXY_HEADERS,
-    PROXY_TRUSTED_HOSTS
+    ensure_dirs,
 )
 
-from api.services.runtime_services import  (
-    get_embedding_generator, 
-    get_retriever, 
-    get_answer_generator,
-)
 get_embedding_generator()
 get_retriever()
 get_answer_generator()
 
-
 logger.info("Starting OmniDocs API")
 
-# Create tables on startup
 ensure_dirs()
-Base.metadata.create_all(bind=engine)
+
+_database_url = os.getenv("DATABASE_URL", "")
+_use_create_all = APP_ENV == "development" or _database_url.startswith("sqlite")
+if _use_create_all:
+    Base.metadata.create_all(bind=engine)
+else:
+    logger.info("Skipping create_all; run alembic upgrade head for schema changes")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Configure third-party SDKs once per process (after settings load)."""
     from api.services.stripe_runtime import init_stripe
 
     init_stripe()
@@ -64,7 +69,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 if TRUST_PROXY_HEADERS:
     app.add_middleware(
         ProxyHeadersMiddleware,
-        trusted_hosts=PROXY_TRUSTED_HOSTS
+        trusted_hosts=PROXY_TRUSTED_HOSTS,
     )
 app.add_middleware(
     CORSMiddleware,
@@ -74,7 +79,7 @@ app.add_middleware(
     allow_headers=CORS_ALLOWED_HEADERS,
 )
 
-
+app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(documents.router)
 app.include_router(chat.router)
@@ -82,15 +87,10 @@ app.include_router(admin.router)
 app.include_router(usage.router)
 app.include_router(billing.router)
 
+
 @app.get("/")
 def root():
     return {
         "status": "ok",
         "message": "OmniDocs API is running",
-    }
-
-@app.get("/health")
-def health():
-    return {
-        "status": "healthy",
     }
