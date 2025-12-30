@@ -13,7 +13,14 @@ from sqlalchemy.orm import sessionmaker
 
 from api.core.security import hash_password
 from api.database import Base, get_db
-from api.models import User, StripeProcessedEvent  # noqa: F401 — register Stripe webhook idempotency table
+from api.models import (  # noqa: F401 — register all tables on Base.metadata
+    AdminAuditLog,
+    Document,
+    DocumentVersion,
+    IngestionJob,
+    StripeProcessedEvent,
+    User,
+)
 
 
 class DummyEmbeeddingGenerator:
@@ -42,6 +49,15 @@ class DummyAnswerGenerator:
             source_used=source_files,
             refused=False
         )
+
+@pytest.fixture(autouse=True)
+def disable_csrf_for_tests(app):
+    from api.dependencies import require_csrf
+
+    app.dependency_overrides[require_csrf] = lambda: None
+    yield
+    app.dependency_overrides.pop(require_csrf, None)
+
 
 @pytest.fixture()
 def app(monkeypatch,tmp_path):

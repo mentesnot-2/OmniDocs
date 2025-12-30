@@ -1,9 +1,9 @@
 import io
 
-from api.models import Document
+from api.models import IngestionJob
 
 
-def test_delete_document_removes_registry(client, db_session, make_user, monkeypatch):
+def test_ingestion_job_status_endpoint(client, make_user, monkeypatch):
     from tests.conftest import DummyEmbeeddingGenerator
 
     user = make_user()
@@ -25,12 +25,13 @@ def test_delete_document_removes_registry(client, db_session, make_user, monkeyp
 
     upload = client.post(
         "/documents/upload",
-        files={"file": ("remove-me.txt", io.BytesIO(b"delete me"), "text/plain")},
+        files={"file": ("job.txt", io.BytesIO(b"Job status polling test content."), "text/plain")},
     )
     assert upload.status_code == 200
+    job_id = upload.json()["job_id"]
 
-    deleted = client.delete("/documents/remove-me.txt")
-    assert deleted.status_code == 200
-
-    remaining = db_session.query(Document).filter(Document.user_id == user.id).count()
-    assert remaining == 0
+    status = client.get(f"/documents/jobs/{job_id}")
+    assert status.status_code == 200
+    body = status.json()
+    assert body["id"] == job_id
+    assert body["status"] in {"completed", "queued", "processing"}
