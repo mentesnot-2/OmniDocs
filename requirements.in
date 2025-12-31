@@ -36,6 +36,7 @@ email-validator
 # Database
 sqlalchemy
 psycopg[binary]
+alembic
 
 # Billing / storage
 stripe
