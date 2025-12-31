@@ -1,58 +1,53 @@
 """Documents routes (upload, query)"""
 
-from api.utils.logging_config import logger
-from api.utils.log_pii import redact_filename_for_log
+import urllib.parse
 from pathlib import Path
-from typing import List
+
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel
-from config import (
-    TOP_K,
-    ALLOWED_EXTENSIONS,
-    MAX_FILE_SIZE_MB,
-)
+from sqlalchemy.orm import Session
+
+from api.dependencies import get_current_user, require_csrf
+from api.database import get_db
+from api.models import User, UsageEvent
 from api.rate_limiter import limiter
+from api.schemas.document import IngestionJobStatus
+from api.services.document_registry import (
+    delete_document_record,
+    get_versions,
+    list_documents,
+    register_pending_version,
+)
+from api.services.file_validation import validate_uploaded_file_content
+from api.services.ingestion_file import FileTooLargeError, write_upload_to_temp_file
+from api.services.ingestion_jobs import create_ingestion_job, get_job_for_user, process_ingestion_job
+from api.services.runtime_services import get_answer_generator, get_retriever
+from api.services.storage_backend import get_storage_backend
 from api.services.usage_limits import (
-    enforce_upload_limit,
-    enforce_storage_limit,
     enforce_query_limit,
+    enforce_storage_limit,
+    enforce_upload_limit,
     get_plan_limits,
     get_plan_storage_limit_bytes,
 )
-from api.services.storage_backend import get_storage_backend
-from api.services.ingestion_file import FileTooLargeError, write_upload_to_temp_file
-from api.services.file_validation import validate_uploaded_file_content
+from api.utils.log_pii import redact_filename_for_log
+from api.utils.logging_config import logger
+from chunking import chunk_document
+from config import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB, TOP_K
+from ingestion import ingest_document
+from vectorstore import ChromaVectorStore
 
+router = APIRouter(prefix="/documents", tags=["documents"])
 
 
 class QueryRequest(BaseModel):
-    question:str
-    top_k:int  | None = None
-    message_history:List[dict] | None = None # List of messages in the conversation
-    session_id:int | None = None # ID of the chat session to use
+    question: str
+    top_k: int | None = None
+    message_history: list[dict] | None = None
+    session_id: int | None = None
 
-class MessagePair(BaseModel):
-    question:str
-    answer:str
-
-
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Request
-from sqlalchemy.orm import Session
-
-from api.database import get_db
-from api.dependencies import get_current_user , require_csrf
-from api.models import User, UsageEvent
-from ingestion import ingest_document
-from chunking import chunk_document
-from vectorstore import ChromaVectorStore
-from api.services.runtime_services import (
-    get_answer_generator,
-    get_embedding_generator,
-    get_retriever,
-)
-router = APIRouter(prefix="/documents",tags=["documents"])
 
 def _track_usage_event(db: Session, user_id: int, event_type: str) -> None:
-    """Best-effort usage tracking; never blocks core request flow."""
     try:
         db.add(UsageEvent(user_id=user_id, event_type=event_type))
         db.commit()
@@ -61,108 +56,140 @@ def _track_usage_event(db: Session, user_id: int, event_type: str) -> None:
         logger.warning(f"Failed to record usage event '{event_type}' for user {user_id}: {exc}")
 
 
-@router.get("")
-@router.get("/")
-def get_documents(
-    db:Session = Depends(get_db),
-    current_user:User = Depends(get_current_user),
-):
-    """List all documents uploaded by by the current user."""
-    # upload_dir = UPLOAD_DIR / str(current_user.id)
-    # if not upload_dir.exists():
-    #     return {"documents":[]}
-    # files = []
-    # for f in upload_dir.iterdir():
-    #     if f.is_file():
-    #         files.append({
-    #             "filename":f.name,
-    #             "uploaded_at":f.stat().st_mtime, # unix timestamp
-    #         })
-
-    #         # Sort by uploaded_at descending (newest first)
-    # files.sort(key=lambda x : x["uploaded_at"], reverse=True)
-    # return {"documents":files}
-    storage = get_storage_backend()
-    return {"documents":storage.list_files(current_user.id)}
-@router.delete("/{filename}")
-def delete_document(
-    filename:str,
-    _csrf: None = Depends(require_csrf),
-    db:Session = Depends(get_db),
-    current_user: User=Depends(get_current_user),
-
-):
-    """Delete a document and its chunks from the vector store."""
-    import urllib.parse
-    filename = urllib.parse.unquote(filename)
-
-    safe_filename = Path(filename).name
-    if safe_filename != filename:
+def _safe_filename(filename: str) -> str:
+    decoded = urllib.parse.unquote(filename)
+    safe = Path(decoded).name
+    if safe != decoded:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid filename: {filename}",
         )
-    # # Security: ensure path stays within user's folder
-    # uploads_dir = (UPLOAD_DIR / str(current_user.id)).resolve()
-    # file_path = (uploads_dir / filename).resolve()
+    return safe
 
-    # if file_path.parent != uploads_dir:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="Invalid filename.",
 
-    #     )
-    # if not file_path.exists():
-    #     raise HTTPException(
-    #         status_code=status.HTTP_404_NOT_FOUND,
-    #         detail="File not found.",
-    #     )
+@router.get("")
+@router.get("/")
+def get_documents(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List documents with version metadata for the current user."""
+    items = list_documents(db, current_user.id)
+    if items:
+        return {"documents": items}
+    storage = get_storage_backend()
+    legacy = storage.list_files(current_user.id)
+    return {
+        "documents": [
+            {
+                "filename": f["filename"],
+                "uploaded_at": f["uploaded_at"],
+                "version": 1,
+                "size_bytes": 0,
+                "status": "ready",
+            }
+            for f in legacy
+        ]
+    }
+
+
+@router.get("/storage")
+def get_storage(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    storage = get_storage_backend()
+    used_bytes = storage.get_usage_bytes(current_user.id)
+    plan = get_plan_limits(current_user)
+    limit_bytes = get_plan_storage_limit_bytes(current_user)
+    return {
+        "used_bytes": used_bytes,
+        "limit_bytes": limit_bytes,
+        "used_percent": round((used_bytes / limit_bytes * 100.0) if limit_bytes else 0.0, 2),
+        "plan_id": plan.plan_id,
+        "plan_name": plan.name,
+    }
+
+
+@router.get("/{filename}/versions")
+def list_document_versions(
+    filename: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    safe_filename = _safe_filename(filename)
+    versions = get_versions(db, current_user.id, safe_filename)
+    if not versions:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    return {"filename": safe_filename, "versions": versions}
+
+
+@router.get("/jobs/{job_id}")
+def get_ingestion_job(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    job = get_job_for_user(db, job_id, current_user.id)
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    return IngestionJobStatus(
+        id=job.id,
+        status=job.status,
+        error_message=job.error_message,
+        document_version_id=job.document_version_id,
+        created_at=job.created_at.isoformat() if job.created_at else None,
+        started_at=job.started_at.isoformat() if job.started_at else None,
+        finished_at=job.finished_at.isoformat() if job.finished_at else None,
+    )
+
+
+@router.delete("/{filename}")
+def delete_document(
+    filename: str,
+    _csrf: None = Depends(require_csrf),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    safe_filename = _safe_filename(filename)
     storage = get_storage_backend()
     if not storage.file_exists(current_user.id, safe_filename):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"File {filename} not found.",
+            detail=f"File {safe_filename} not found.",
         )
-    # Delete from vectore store
     store = ChromaVectorStore(user_id=str(current_user.id))
     store.delete_by_source(safe_filename)
-
     storage.delete_file(current_user.id, safe_filename)
+    delete_document_record(db, current_user.id, safe_filename)
+    return {"message": "Document deleted successfully.", "filename": safe_filename}
 
-    return {
-        "message": "Document deleted successfully.",
-        "filename": safe_filename,
-    }
+
 @router.post("/upload")
 @limiter.limit("10/minute")
 async def upload(
     request: Request,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     _csrf: None = Depends(require_csrf),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload document and index it for the current user."""
+    """Upload document and queue background indexing."""
     original_filename = (file.filename or "").strip()
     if not original_filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Filename is required.",
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required.")
+
     safe_filename = Path(original_filename).name
     if safe_filename != original_filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid filename.",
-        )
-    file_log = redact_filename_for_log(safe_filename)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid filename.")
 
+    file_log = redact_filename_for_log(safe_filename)
     ext = Path(safe_filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
-        logger.error(f"File {file_log} has an invalid extension. Allowed extensions are {ALLOWED_EXTENSIONS}.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File {safe_filename} has an invalid extension. Allowed extensions are {ALLOWED_EXTENSIONS}.",
+            detail=f"File {safe_filename} has an invalid extension.",
         )
 
     enforce_upload_limit(db, current_user)
@@ -180,7 +207,6 @@ async def upload(
 
     storage = get_storage_backend()
     storage_saved = False
-    indexing_completed = False
     temp_upload_path: Path | None = None
 
     try:
@@ -191,89 +217,52 @@ async def upload(
                 max_bytes=max_bytes,
             )
         except FileTooLargeError:
-            logger.error(f"Document {file_log} is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.")
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail=f"Document is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.",
             )
 
-        
-        
         content = temp_upload_path.read_bytes()
         validate_uploaded_file_content(safe_filename, content)
         enforce_storage_limit(current_user, total_bytes)
-        size_mb = total_bytes / (1024 * 1024)
-        logger.info(f"Document {file_log} uploaded successfully. Size: {size_mb:.2f} MB.")
+        logger.info(f"Document {file_log} uploaded. Size: {total_bytes / (1024 * 1024):.2f} MB.")
 
         with temp_upload_path.open("rb") as upload_stream:
             storage.save_fileobj(current_user.id, safe_filename, upload_stream)
         storage_saved = True
 
-        local_path = storage.get_local_path(current_user.id, safe_filename)
-        ingest_path = local_path if local_path is not None else temp_upload_path
+        _, version = register_pending_version(
+            db,
+            user_id=current_user.id,
+            filename=safe_filename,
+            size_bytes=total_bytes,
+            content=content,
+        )
+        job = create_ingestion_job(
+            db,
+            user_id=current_user.id,
+            document_version_id=version.id,
+        )
+        background_tasks.add_task(process_ingestion_job, job.id)
 
-        try:
-            parsed = ingest_document(ingest_path)
-            logger.info(f"Document {file_log} parsed successfully.")
-        except Exception:
-            logger.exception("Failed to parse document %s", file_log)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to parse document.",
-            )
-
-        if not parsed.content.strip():
-            logger.error(f"Document {file_log} is empty or contains no text.")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Document is empty or contains no text.",
-            )
-        
-        chunks = chunk_document(parsed)
-        if not chunks:
-            logger.error(f"No chunks produced from document {file_log}.")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No chunks produced from document.",
-            )
-        texts = [c.text for c in chunks]
-        gen = get_embedding_generator()
-        embeddings = gen.embed_batch(texts)
-
-        store = ChromaVectorStore(user_id=str(current_user.id))
-        # Delete old chunks for re-upload (same filename)
-        store.delete_by_source(safe_filename)
-        metadatas = [
-            {
-                "source_file": c.source_file,
-                "chunk_index": c.chunk_index,
-                "user_id": str(current_user.id),
-                **{k: str(v) for k,v in c.metadata.items()}
-            }
-            for c in chunks
-        ]
-        store.add_chunks(texts, embeddings, metadatas)
-        _track_usage_event(db, current_user.id, "upload")
-        indexing_completed = True
+        return {
+            "message": "Document uploaded; indexing started.",
+            "file_name": safe_filename,
+            "version": version.version_number,
+            "job_id": job.id,
+            "status": job.status,
+        }
+    except HTTPException:
+        if storage_saved:
+            try:
+                storage.delete_file(current_user.id, safe_filename)
+            except Exception as cleanup_exc:
+                logger.warning(f"Cleanup failed for {file_log}: {cleanup_exc}")
+        raise
     finally:
         await file.close()
         if temp_upload_path is not None and temp_upload_path.exists():
             temp_upload_path.unlink(missing_ok=True)
-        if storage_saved and not indexing_completed:
-            try:
-                storage.delete_file(current_user.id, safe_filename)
-            except Exception as cleanup_exc:
-                logger.warning(
-                    f"Failed to clean up stored file {file_log} after upload failure: {cleanup_exc}"
-                )
-
-   
-
-    return {
-        "message": "Document uploaded and indexed successfully.",
-        "file_name": safe_filename,
-        "chunk_indexed": len(chunks),
-    }
 
 
 @router.post("/query")
@@ -285,21 +274,16 @@ def query(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Answer a question based only on the current user's documents."""
     question = body.question.strip()
     if not question:
-        logger.error("Question cannot be empty.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Question cannot be empty.")
+    max_question_len = 2000
+    if len(question) > max_question_len:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Question cannot be empty.",
+            detail=f"Question is too long. Maximum length is {max_question_len} characters.",
         )
-    MAX_QUESTION_LEN = 2000
-    if len(question) > MAX_QUESTION_LEN:
-        logger.error(f"Question is too long. Maximum length is {MAX_QUESTION_LEN} characters.")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Question is too long. Maximum length is {MAX_QUESTION_LEN} characters.",
-        )
+
     enforce_query_limit(db, current_user)
     retriever = get_retriever()
     result = retriever.retrieve_with_context(
@@ -311,7 +295,7 @@ def query(
 
     if result["num_results"] == 0:
         return {
-            "answer":"I cannot answer because no relevant documents were found for this user.",
+            "answer": "I cannot answer because no relevant documents were found for this user.",
             "sources": [],
         }
 
@@ -324,28 +308,7 @@ def query(
         message_history=body.message_history,
     )
     return {
-        "answer":response.answer,
-        "sources":source_files,
-        "refused":response.refused
-    }
-
-
-# Add quota endpoint
-# add Get /documents/storage returning { used_bytes, limit_bytes, used_percent }
-@router.get("/storage")
-def get_storage(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Get the storage usage for the current user."""
-    storage = get_storage_backend()
-    used_bytes = storage.get_usage_bytes(current_user.id)
-    plan = get_plan_limits(current_user)
-    limit_bytes = get_plan_storage_limit_bytes(current_user)
-    return {
-        "used_bytes": used_bytes,
-        "limit_bytes": limit_bytes,
-        "used_percent": round((used_bytes / limit_bytes * 100.0) if limit_bytes else 0.0, 2),
-        "plan_id": plan.plan_id,
-        "plan_name": plan.name,
+        "answer": response.answer,
+        "sources": source_files,
+        "refused": response.refused,
     }
