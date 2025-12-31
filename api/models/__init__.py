@@ -6,6 +6,9 @@ from api.models.refresh_session import RefreshSession
 from api.models.support import SupportTicket
 from api.models.usage_event import UsageEvent
 from api.models.stripe_processed_event import StripeProcessedEvent
+from api.models.document import Document, DocumentVersion
+from api.models.ingestion_job import IngestionJob
+from api.models.admin_audit_log import AdminAuditLog
 
 __all__ = [
     "User",
@@ -15,4 +18,8 @@ __all__ = [
     "SupportTicket",
     "UsageEvent",
     "StripeProcessedEvent",
+    "Document",
+    "DocumentVersion",
+    "IngestionJob",
+    "AdminAuditLog",
 ]
