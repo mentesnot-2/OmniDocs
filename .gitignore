@@ -1,0 +1,51 @@
+# ─── Python ─────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# ─── Environment & Secrets ──────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ─── Vector Store & Data ───────────────────────────
+chroma_db/
+data/
+*.db
+*.sqlite
+
+# ─── IDE & Editor ──────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── OS ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Logs & Temp ───────────────────────────────────
+*.log
+*.tmp
+.cache/
+
+# ─── Testing ───────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ─── Project-specific (local notes & instructions) ──
+instruction.md
+LEARNING_GUIDE.md
