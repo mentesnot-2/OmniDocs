@@ -114,6 +114,6 @@ class Retriever:
             "query": query,
             "chunks": retrieval_results,
             "context_text": context_text,
-            "num_results": len(results),
+            "num_results": len(retrieval_results),
 
         }
