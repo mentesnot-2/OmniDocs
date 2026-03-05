@@ -6,7 +6,12 @@ Run: uvicorn api.main:app --reload
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import auth, documents
+from api.database import engine,Base
+from api.models import User
+from api.database import get_db
 
+#Create tables on startup
+Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="OmniDocs API",
     description="API for OmniDocs RAG system",

@@ -31,3 +31,5 @@ passlib[bcrypt]>=1.7.4
 
 # Database
 sqlalchemy>=2.0.0
+
+email-validator>=2.0.0
