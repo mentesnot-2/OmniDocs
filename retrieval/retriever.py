@@ -22,8 +22,8 @@ class Retriever:
     """High level retriever interface"""
     def __init__(
         self,
-        vector_store: ChromaVectorStore,
-        embedding_generator: EmbeddingGenerator,
+        vector_store: ChromaVectorStore = None,
+        embedding_generator: EmbeddingGenerator = None,
     ):
         """"
         Initialize retriever.
@@ -77,7 +77,7 @@ class Retriever:
             result = RetrievalResult(
                 text=doc,
                 source_file=meta.get("source_file", "unknown"),
-                chunk_index=int(chunk_id.split("_")[-1]),
+                chunk_index=meta.get("chunk_index",-1),
                 distance=dist,
                 metadata=meta,
             )
@@ -99,7 +99,12 @@ class Retriever:
             Dictionary with context sections
         """
         if not query or not query.strip():
-            return {}
+            return {
+                "query": query or " ",
+                "chunks": [],
+                "context_text": " ",
+                "num_results": 0,
+            }
         retrieval_results = self.retrieve(query, top_k)
 
         # Format context for LLM

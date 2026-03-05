@@ -31,6 +31,6 @@ def parse_pdf(file_path:Path) -> ParsedDocument:
     }
     return ParsedDocument(
         content=full_text,
-        source_file=str(file_path),
+        source_file=str(file_path.name),
         metadata=metadata,
     )

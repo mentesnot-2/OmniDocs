@@ -1,7 +1,6 @@
 """
 LLM-based answer generation with context grounding."""
 
-from ast import Str
 from typing import Optional
 from dataclasses import dataclass
 from openai import OpenAI
@@ -24,7 +23,7 @@ RULES:
 - Be concise and factual.
 - If possible, mention the source (e.g., "According to README.md...")."""
 
-USER_PROMPT = f"""Context from documents:
+USER_PROMPT = """Context from documents:
 {context}
 
 ---
@@ -74,7 +73,7 @@ class AnswerGenerator:
         # Reject if context is empty
         if not context_text or not context_text.strip():
             return GenerationResult(
-                answer="I cannot answer because no relvant documents were found.",
+                answer="I cannot answer because no relevant documents were found.",
                 source_used=[],
                 refused=True,
             )
@@ -90,24 +89,24 @@ class AnswerGenerator:
                     {"role": "system", "content":SYSTEM_PROMPT},
                     {"role": "user", "content":user_prompt},
                 ],
-                temprature=0.1,
+                temperature=0.1,
             )
             answer = response.choices[0].message.content.strip()
 
             # Heurstic: check if LLM refused
             refused = (
                 "cannot answer" in answer.lower() or
-                "provided documets" in answer.lower()
+                "provided documents" in answer.lower()
             )
             return GenerationResult(
                 answer=answer,
-                sources_used=source_files,
+                source_used=source_files,
                 refused=refused,
             )
         except Exception as e:
             return GenerationResult(
                 answer=f"An error occurred: {str(e)}",
-                sources_used=[],
+                source_used=[],
                 refused=True,
             )
 

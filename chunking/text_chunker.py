@@ -42,7 +42,7 @@ def chunk_text(
     chunks = []
     start = 0
     chunk_index = 0
-    with start < len(tokens):
+    while start < len(tokens):
 
         # Get chunk tokens
         end = start + chunk_size

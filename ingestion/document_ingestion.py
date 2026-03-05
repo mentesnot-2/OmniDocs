@@ -23,7 +23,6 @@ PARSER_MAP = {
     ".markdown": parse_txt,
     ".csv": parse_csv,
     ".xlsx": parse_xlsx,
-    ".xls": parse_xlsx,
     ".html": parse_html,
     ".htm": parse_html,
 }

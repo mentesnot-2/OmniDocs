@@ -29,7 +29,7 @@ def index_documents(file_path:Path, store:ChromaVectorStore, gen:EmbeddingGenera
         return
     
     # Chunk 
-    chunks = chunk_document(parsed.content)
+    chunks = chunk_document(parsed)
     print(f" Chunks: {len(chunks)}")
 
     if not chunks:
