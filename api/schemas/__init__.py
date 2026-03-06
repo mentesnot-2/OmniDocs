@@ -1,4 +1,4 @@
 """Pydantic schemas ."""
-from api.schemas.user import UserCreate, UserResponse
+from api.schemas.user import  UserResponse
 
-__all__ = ["UserCreate", "UserResponse"]
+__all__ = [ "UserResponse"]

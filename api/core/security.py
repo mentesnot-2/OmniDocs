@@ -1,25 +1,30 @@
-"""Password hashing and JWT hanlding"""
+"""Password hashing and JWT handling."""
 
 import os
-from datetime import datetime,timedelta
-from jose import JWTError,jwt
-from passlib.context import CryptContext
+import bcrypt
+from datetime import datetime, timedelta
+from jose import JWTError, jwt
 
-
-# Load from env or use dev defaults
-
-SECRET_KEY = os.getenv("JWT_SECRET_KEY","dev-secret-change-in-production")
-ALGORITHM = os.getenv("JWT_ALGORITHM","HS256")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret-change-in-production")
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
-pwd_context = CryptContext(schemas=["bcrypt"],deprecated="auto")
+# bcrypt has a 72-byte limit; truncate to avoid ValueError
+BCRYPT_MAX_PASSWORD_BYTES = 72
 
 
-def hash_password(password:str)->str:
-    return pwd_context.hash(password)
+def hash_password(password: str) -> str:
+    raw = password.encode("utf-8")
+    if len(raw) > BCRYPT_MAX_PASSWORD_BYTES:
+        raw = raw[:BCRYPT_MAX_PASSWORD_BYTES]
+    return bcrypt.hashpw(raw, bcrypt.gensalt()).decode("utf-8")
 
-def verify_password(plain_password:str,hashed_password:str)->bool:
-    return pwd_context.verify(plain_password,hashed_password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    raw = plain_password.encode("utf-8")
+    if len(raw) > BCRYPT_MAX_PASSWORD_BYTES:
+        raw = raw[:BCRYPT_MAX_PASSWORD_BYTES]
+    return bcrypt.checkpw(raw, hashed_password.encode("utf-8"))
 
 
 def create_access_token(data:dict)->str:
