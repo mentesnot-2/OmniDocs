@@ -39,6 +39,7 @@ class Retriever:
         query:str,
         top_k:int=TOP_K,
         filter_source:Optional[str]=None,
+        user_id:Optional[str]=None,
 
     ) -> List[RetrievalResult]:
         """Retrieve relevant chunks for a query.
@@ -64,6 +65,7 @@ class Retriever:
             query_embedding=query_embedding,
             top_k=top_k,
             filter_metadata=filter_metadata,
+            user_id=user_id,
         )
 
         retrieval_results = []
@@ -88,7 +90,7 @@ class Retriever:
         self,
         query:str,
         top_k:int=TOP_K,
-
+        user_id:Optional[str]=None,
     ) -> Dict[str, Any]:
         """
         Retrieve chunks and format them for LLM context.
@@ -105,7 +107,7 @@ class Retriever:
                 "context_text": " ",
                 "num_results": 0,
             }
-        retrieval_results = self.retrieve(query, top_k)
+        retrieval_results = self.retrieve(query, top_k, user_id=user_id)
 
         # Format context for LLM
         context_parts = []

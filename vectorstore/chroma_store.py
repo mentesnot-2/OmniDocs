@@ -80,6 +80,7 @@ class ChromaVectorStore:
         query_embedding:List[float],
         top_k:int = 5,
         filter_metadata:Dict[str,Any] = None,
+        user_id:str = None,
     ):
         """
         Search for similar chunks.
@@ -90,10 +91,18 @@ class ChromaVectorStore:
         Returns:
             A list of results.
         """
+        # Build where clause  - ChromaDbB requires user_id filter for multi-tenant
+        where_filter = None
+        if user_id is not None:
+            where_filter = {"user_id":user_id}
+            if filter_metadata:
+                where_filter = {"$and":[where_filter,filter_metadata]}
+        else:
+            where_filter = filter_metadata
         results = self.collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
-            where=filter_metadata,
+            where=where_filter,
         )
 
         return {
@@ -102,9 +111,14 @@ class ChromaVectorStore:
             "distances": results["distances"][0] if results["distances"] else [],
             "ids": results["ids"][0] if results["ids"] else [],
         }
-    def delete_by_source(self,source_file:str):
+    def delete_by_source(self,source_file:str,user_id:str = None):
         """Delete all chunks from a specific source file"""
-        self.collection.delete(where={"source_file":source_file})
+        where_clause = None
+        if user_id is not None:
+            where_clause = {"$and":[{"source_file":source_file},{"user_id":str(user_id)}]}
+        else:
+            where_clause = {"source_file":source_file}
+        self.collection.delete(where=where_clause)
         print(f"Deleted all chunks from {source_file}")
     def clear(self):
         self.client.delete_collection(self.collection_name)

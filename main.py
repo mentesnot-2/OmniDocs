@@ -42,6 +42,7 @@ def index_documents(file_path:Path, store:ChromaVectorStore, gen:EmbeddingGenera
         {
             "source_file": c.source_file,
             "chunk_index":c.chunk_index,
+            "user_id":user_id,
             **{k:str(v) for k,v in c.metadata.items()}
         }
         for c in chunks
