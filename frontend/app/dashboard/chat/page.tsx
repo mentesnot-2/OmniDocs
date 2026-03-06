@@ -36,8 +36,9 @@ export default function ChatPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <header className="border-b border-slate-800 px-6 py-4 flex justify-between items-center">
-        <a href="/dashboard" className="text-slate-400 hover:text-white text-sm">
-          ← Back to dashboard
+        <a href="/dashboard" className="flex items-center gap-3">
+          <img src="/OmniDocs.png" alt="OmniDocs" className="h-9 w-auto" />
+          <span className="text-slate-400 hover:text-white text-sm">← Back to dashboard</span>
         </a>
       </header>
 

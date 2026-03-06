@@ -64,7 +64,9 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <header className="border-b border-slate-800 px-6 py-4 flex justify-between items-center">
-        <h1 className="text-xl font-semibold text-white">OmniDocs</h1>
+        <a href="/dashboard" className="flex items-center gap-2">
+          <img src="/OmniDocs.png" alt="OmniDocs" className="h-9 w-auto" />
+        </a>
         <div className="flex items-center gap-4">
           <span className="text-slate-400 text-sm">{user.email}</span>
           <button

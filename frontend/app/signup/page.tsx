@@ -36,9 +36,12 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950">
       <div className="w-full max-w-md bg-slate-900/80 border border-slate-800 rounded-xl p-8 shadow-xl">
-        <h1 className="text-2xl font-semibold text-white mb-6 text-center">
-          Create your OmniDocs account
-        </h1>
+        <div className="flex flex-col items-center mb-6">
+          <img src="/OmniDocs.png" alt="OmniDocs" className="h-20 w-auto mb-4" />
+          <h1 className="text-2xl font-semibold text-white text-center">
+            Create your OmniDocs account
+          </h1>
+        </div>
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
             <label className="block text-sm text-slate-300 mb-1">Email</label>
