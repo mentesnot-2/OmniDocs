@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { postFormData, postJson } from "@/lib/api";
+import { postFormData, postJson, getJson } from "@/lib/api";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -11,12 +11,13 @@ export default function DashboardPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
-
+  const [documents, setDocuments] = useState<{ filename: string; uploaded_at: number }[]>([]);
   useEffect(() => {
     const raw = localStorage.getItem("omnidocs_user");
     if (raw) {
       try {
         setUser(JSON.parse(raw));
+        getJson<{documents:{filename:string; uploaded_at:number}[]}>("/documents/").then((res) => setDocuments(res.documents || [])).catch(() => setDocuments([]))
       } catch {
         router.push("/login");
       }
@@ -46,6 +47,7 @@ export default function DashboardPage() {
       const res = await postFormData("/documents/upload", formData);
       setUploadSuccess(`Uploaded "${res.file_name}" — ${res.chunk_indexed} chunks indexed.`);
       setFile(null);
+      getJson<{documents:{filename:string, uploaded_at:number}[]}>("/documents/").then((res) => setDocuments(res.documents || []))
     } catch (err: any) {
       setUploadError(err.message || "Upload failed");
     } finally {
@@ -102,6 +104,21 @@ export default function DashboardPage() {
               {uploading ? "Uploading..." : "Upload & index"}
             </button>
           </form>
+        </section>
+        <section>
+          <h2 className="text-lg font-medium text-white mb-4">Your documents</h2>
+          {documents.length === 0 ? (
+            <p className="text-slate-400 text-sm">No documents uploaded yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {documents.map((doc) => (
+                <li key={doc.filename} className="flex items-center gap-2 text-slate-300 text-sm">
+                  <span className="text-emerald-400">•</span>
+                  {doc.filename}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section>

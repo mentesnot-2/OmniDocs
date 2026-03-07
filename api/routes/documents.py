@@ -29,6 +29,26 @@ from vectorstore import ChromaVectorStore
 router = APIRouter(prefix="/documents",tags=["documents"])
 
 
+@router.get("/")
+def get_documents(
+    db:Session = Depends(get_db),
+    current_user:User = Depends(get_current_user),
+):
+    """List all documents uploaded by by the current user."""
+    upload_dir = Path("data/uploads") / str(current_user.id)
+    if not upload_dir.exists():
+        return {"documents":[]}
+    files = []
+    for f in upload_dir.iterdir():
+        if f.is_file():
+            files.append({
+                "filename":f.name,
+                "uploaded_at":f.stat().st_mtime, # unix timestamp
+            })
+
+            # Sort by uplaoded_at descending (newest first)
+    files.sort(key=lambda x : x["uploaded_at"], reverse=True)
+    return {"documents":files}
 @router.post("/upload")
 async def upload(
     file:UploadFile = File(...),
