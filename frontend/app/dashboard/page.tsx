@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { postFormData, postJson, getJson } from "@/lib/api";
+import { postFormData, postJson, getJson, deleteRequest } from "@/lib/api";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -12,6 +12,9 @@ export default function DashboardPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [documents, setDocuments] = useState<{ filename: string; uploaded_at: number }[]>([]);
+  const [deleting,setDeleting] = useState<string | null>(null);
+
+  
   useEffect(() => {
     const raw = localStorage.getItem("omnidocs_user");
     if (raw) {
@@ -25,6 +28,19 @@ export default function DashboardPage() {
       router.push("/login");
     }
   }, [router]);
+
+  async function handleDelete(filename:string) {
+    if (!confirm(`Delete "${filename}"? This cannot be undone.`)) return;
+    setDeleting(filename);
+    try {
+      await deleteRequest(`/documents/${encodeURIComponent(filename)}`);
+      setDocuments((perv) => perv.filter((d) => d.filename !== filename));
+    } catch (err: any) {
+      setUploadError(err.message || "Failed to delete document");
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   function handleLogout() {
     localStorage.removeItem("omnidocs_token");
@@ -111,13 +127,20 @@ export default function DashboardPage() {
             <p className="text-slate-400 text-sm">No documents uploaded yet.</p>
           ) : (
             <ul className="space-y-2">
-              {documents.map((doc) => (
-                <li key={doc.filename} className="flex items-center gap-2 text-slate-300 text-sm">
-                  <span className="text-emerald-400">•</span>
-                  {doc.filename}
-                </li>
-              ))}
-            </ul>
+            {documents.map((doc) => (
+              <li key={doc.filename} className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/30 px-3 py-2">
+                <span className="text-slate-300 text-sm truncate">{doc.filename}</span>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(doc.filename)}
+                  disabled={deleting === doc.filename}
+                  className="shrink-0 text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+                >
+                  {deleting === doc.filename ? "Deleting..." : "Delete"}
+                </button>
+              </li>
+            ))}
+          </ul>
           )}
         </section>
 

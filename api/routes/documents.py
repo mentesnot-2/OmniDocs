@@ -49,6 +49,45 @@ def get_documents(
             # Sort by uplaoded_at descending (newest first)
     files.sort(key=lambda x : x["uploaded_at"], reverse=True)
     return {"documents":files}
+@router.delete("/{filename}")
+def delete_document(
+    filename:str,
+    db:Session = Depends(get_db),
+    current_user: User=Depends(get_current_user),
+
+):
+    """Delete a document and its chunks from the vector store."""
+    import urrlib.parse
+
+    # Decode filename in case it has special characters.
+    filename = urrlib.parse.unquote(filename)
+
+
+    # Security: ensure path stays within user's  folder
+    uploads_dir = Path("data/uploads") / str(current_user.id)
+    file_path = (uploads_dir / filename).resolve()
+
+    if not str(file_path).startswith(str(uploads_dir)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid filename.",
+
+        )
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found.",
+        )
+    # Delete from vectore store
+    store = ChromaVectorStore()
+    store.delete_by_source(filename,source_type="file")
+    # Delete file from disk
+    file_path.unlink()
+
+    return {
+        "message": "Document deleted successfully.",
+        "filename": filename,
+    }
 @router.post("/upload")
 async def upload(
     file:UploadFile = File(...),

@@ -61,3 +61,20 @@ export async function getJson<T>(path:string) : Promise<T> {
     }
     return response.json();
 }
+
+
+export async function deleteRequest(path:string) : Promise<any> {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const response = await fetch(`${API_BASE}${path}`,{
+        method: "DELETE",
+        headers,
+    });
+
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || `Request failed with ${response.status}`);
+    }
+    return response.json();
+}
