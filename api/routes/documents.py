@@ -12,6 +12,7 @@ class QueryRequest(BaseModel):
     question:str
     top_k:int  | None = None
     message_history:List[dict] | None = None # List of messages in the conversation
+    session_id:int | None = None # ID of the chat session to use
 
 class MessagePair(BaseModel):
     question:str
@@ -62,17 +63,18 @@ def delete_document(
 
 ):
     """Delete a document and its chunks from the vector store."""
-    import urrlib.parse
+    import urllib.parse
 
     # Decode filename in case it has special characters.
-    filename = urrlib.parse.unquote(filename)
+    filename = urllib.parse.unquote(filename)
 
 
-    # Security: ensure path stays within user's  folder
+    # Security: ensure path stays within user's folder
     uploads_dir = Path("data/uploads") / str(current_user.id)
+    uploads_dir = uploads_dir.resolve()
     file_path = (uploads_dir / filename).resolve()
 
-    if not str(file_path).startswith(str(uploads_dir)):
+    if file_path.parent != uploads_dir:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid filename.",
@@ -85,7 +87,7 @@ def delete_document(
         )
     # Delete from vectore store
     store = ChromaVectorStore()
-    store.delete_by_source(filename,source_type="file")
+    store.delete_by_source(filename, str(current_user.id))
     # Delete file from disk
     file_path.unlink()
 

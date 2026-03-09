@@ -18,12 +18,16 @@ def create_session(
     current_user:User = Depends(get_current_user),
 ):
     """Create a new chat session for the current user"""
-
     session = ChatSession(user_id=current_user.id)
     db.add(session)
     db.commit()
     db.refresh(session)
-    return session
+    return {
+        "id": session.id,
+        "user_id": session.user_id,
+        "created_at": session.created_at,
+        "messages": [],
+    }
 
 
 @router.get("/sessions/{session_id}", response_model=SessionOut)
@@ -45,7 +49,7 @@ def get_session(
         )
     return session
 
-@router.get("/sessions",response_mdel=List[SessionOut])
+@router.get("/sessions", response_model=List[SessionOut])
 def list_sessions(
     db:Session = Depends(get_db),
     current_user:User = Depends(get_current_user),

@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { postJson } from "@/lib/api";
+import { getJson, postJson } from "@/lib/api";
+
+type SessionSummary = { id: number; user_id: number; created_at: string; messages: unknown[] };
 
 export default function ChatPage() {
   const router = useRouter();
@@ -12,6 +14,54 @@ export default function ChatPage() {
   const [sources, setSources] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [messageHistory, setMessageHistory] = useState<{question: string, answer: string}[]>([]);
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+
+  useEffect(() => {
+   const params = new URLSearchParams(window.location.search);
+   const id = params.get("session");
+
+   if (id) {
+
+    const sid = parseInt(id,10);
+
+    if (isNaN(sid)) return;
+
+    setSessionId(sid);
+    getJson<{messages: {role:string,content:string}[]}>(`/chat/sessions/${sid}`)
+      .then((res) => {
+        const pairs: {question:string,answer:string}[] = [];
+        const msgs = res.messages || [];
+        for (let i = 0; i < msgs.length - 1; i += 2) {
+          if (msgs[i]?.role === "user" && msgs[i + 1]?.role === "assistant") {
+            pairs.push({
+              question: msgs[i].content,
+              answer: msgs[i + 1].content,
+            });
+          }
+        }
+        setMessageHistory(pairs);
+      })
+      .catch((err: any) => {
+        setError(err.message || "Failed to fetch chat session");
+      });
+   } else {
+    postJson<Record<string,never>, {id:number}>("/chat/sessions", {})
+      .then((res) => {
+        setSessionId(res.id);
+        window.history.replaceState({},"",`/dashboard/chat?session=${res.id}`);
+      })
+      .catch((err: any) => {
+        setError(err.message || "Failed to create chat session");
+      });
+   }
+  }, []);
+
+  useEffect(() => {
+    getJson<SessionSummary[]>("/chat/sessions")
+      .then((list) => setSessions(list || []))
+      .catch(() => setSessions([]));
+  }, [sessionId])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,6 +78,9 @@ export default function ChatPage() {
       setAnswer(res.answer);
       setSources(res.sources || []);
       setMessageHistory((prev) => [...prev,{question:question.trim(),answer:res.answer}]);
+      if (sessionId) {
+        postJson(`/chat/sessions/${sessionId}/messages`, {question:question.trim(),answer:res.answer}).catch(() => {})
+      }
       setQuestion("");
     } catch (err: any) {
       setError(err.message || "Query failed");
@@ -36,13 +89,41 @@ export default function ChatPage() {
     }
   }
 
+  function switchSession(id: number) {
+    setSessionId(id);
+    setMessageHistory([]);
+    setAnswer(null);
+    setError(null);
+    window.location.href = `/dashboard/chat?session=${id}`;
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-800 px-6 py-4 flex justify-between items-center">
+      <header className="border-b border-slate-800 px-6 py-4 flex justify-between items-center flex-wrap gap-4">
         <a href="/dashboard" className="flex items-center gap-3">
           <img src="/OmniDocs.png" alt="OmniDocs" className="h-9 w-auto" />
           <span className="text-slate-400 hover:text-white text-sm">← Back to dashboard</span>
         </a>
+        {sessions.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 text-sm">Sessions:</span>
+            <select
+              value={sessionId ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v) switchSession(parseInt(v, 10));
+              }}
+              className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">Select session</option>
+              {sessions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  Session {s.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </header>
 
       <main className="max-w-2xl mx-auto px-6 py-8">
