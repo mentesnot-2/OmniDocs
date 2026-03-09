@@ -30,4 +30,8 @@ class SessionOut(BaseModel):
 
     class Config:
         from_attributes = True
-        
+
+
+class AddMessageRequest(BaseModel):
+    question: str
+    answer: str

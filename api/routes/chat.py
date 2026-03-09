@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from api.database import get_db
 from api.dependencies import get_current_user
 from api.models import User,ChatSession,ChatMessage
-from api.schemas.chat import MessageOut,SessionOut
+from api.schemas.chat import MessageOut,SessionOut,AddMessageRequest
 
 router = APIRouter(prefix="/chat",tags=["chat"])
 
@@ -55,3 +55,37 @@ def list_sessions(
         ChatSession.user_id == current_user.id,
     ).order_by(ChatSession.created_at.desc()).all()
     return sessions
+
+@router.post("/sessions/{session_id}/messages")
+def add_message(
+    session_id:int,
+    body:AddMessageRequest,
+    db:Session = Depends(get_db),
+    current_user:User = Depends(get_current_user),
+):
+
+    """Add a Q&A pair to a session."""
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == current_user.id,
+    ).first()
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+    msg_user = ChatMessage(
+        session_id=session_id,
+        role="user",
+        content=body.question,
+    )
+    msg_assistant = ChatMessage(
+        session_id=session_id,
+        role="assistant",
+        content=body.answer,
+    )
+    db.add(msg_user)
+    db.add(msg_assistant)
+    db.commit()
+    return {"ok":True}
