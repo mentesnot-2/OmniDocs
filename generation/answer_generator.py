@@ -57,6 +57,7 @@ class AnswerGenerator:
         query:str,
         context_text:str,
         source_files:list[str],
+        message_history:list | None = None,
     ) -> GenerationResult:
         """
         Generate an answer to a question based on the provided context.
@@ -64,6 +65,7 @@ class AnswerGenerator:
             query: Natural language question
             context_text: Context text from documents
             source_files: List of source files used
+            message_history: Optional list of {"question": str, "answer": str} for follow-up context
         Returns:
             GenerationResult object containing the answer and source information
         """
@@ -77,9 +79,30 @@ class AnswerGenerator:
                 source_used=[],
                 refused=True,
             )
+
+        # Build query section: include previous Q&A if this is a follow-up
+        if message_history and len(message_history) > 0:
+            history_parts = []
+            for item in message_history:
+                q = item.get("question", "")
+                a = item.get("answer", "")
+                if q or a:
+                    history_parts.append(f"Q: {q}\nA: {a}")
+            if history_parts:
+                effective_query = (
+                    "Previous Q&A:\n"
+                    + "\n\n".join(history_parts)
+                    + "\n\nCurrent question: "
+                    + query
+                )
+            else:
+                effective_query = query
+        else:
+            effective_query = query
+
         user_prompt = USER_PROMPT.format(
             context=context_text,
-            query=query,
+            query=effective_query,
         )
 
         try:

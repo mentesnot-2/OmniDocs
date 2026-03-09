@@ -11,6 +11,11 @@ from config import TOP_K
 class QueryRequest(BaseModel):
     question:str
     top_k:int  | None = None
+    message_history:List[dict] | None = None # List of messages in the conversation
+
+class MessagePair(BaseModel):
+    question:str
+    answer:str
 
 
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
@@ -130,6 +135,8 @@ async def upload(
     embeddings = gen.embed_batch(texts)
 
     store = ChromaVectorStore()
+    # Delete old chunks for re-upload (same filename)
+    store.delete_by_source(file.filename, str(current_user.id))
     metadatas = [
         {
             "source_file": c.source_file,
@@ -182,6 +189,7 @@ def query(
         query=result["query"],
         context_text=result["context_text"],
         source_files=source_files,
+        message_history=body.message_history,
     )
     return {
         "answer":response.answer,

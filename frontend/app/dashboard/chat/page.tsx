@@ -11,6 +11,7 @@ export default function ChatPage() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [sources, setSources] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [messageHistory, setMessageHistory] = useState<{question: string, answer: string}[]>([]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -20,12 +21,14 @@ export default function ChatPage() {
     setSources([]);
     setLoading(true);
     try {
-      const res = await postJson<{ question: string }, { answer: string; sources: string[] }>(
+      const res = await postJson<{ question: string; message_history?: {question:string,answer:string}[]}, { answer: string; sources: string[] }>(
         "/documents/query",
-        { question: question.trim() },
+        { question: question.trim(), message_history: messageHistory },
       );
       setAnswer(res.answer);
       setSources(res.sources || []);
+      setMessageHistory((prev) => [...prev,{question:question.trim(),answer:res.answer}]);
+      setQuestion("");
     } catch (err: any) {
       setError(err.message || "Query failed");
     } finally {
@@ -44,6 +47,16 @@ export default function ChatPage() {
 
       <main className="max-w-2xl mx-auto px-6 py-8">
         <h1 className="text-xl font-semibold text-white mb-6">Ask about your documents</h1>
+        {messageHistory.length > 0 && (
+          <div className="mb-8 space-y-4">
+            {messageHistory.map((item, index) => (
+              <div key={index} className="rounded-lg border border-slate-700 bg-slate-900/50 p-4 space-y-2">
+                <p className="text-sm font-medium text-slate-400">Q: {item.question}</p>
+                <p className="text-slate-200 whitespace-pre-wrap">{item.answer}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 mb-8">
           <input
