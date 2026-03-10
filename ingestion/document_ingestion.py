@@ -13,6 +13,7 @@ from parsers import (
     parse_csv,
     parse_xlsx,
     parse_html,
+    parse_pptx,
 )
 
 PARSER_MAP = {
@@ -25,6 +26,7 @@ PARSER_MAP = {
     ".xlsx": parse_xlsx,
     ".html": parse_html,
     ".htm": parse_html,
+    ".pptx": parse_pptx,
 }
 
 def ingest_document(file_path:Path) -> ParsedDocument:

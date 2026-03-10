@@ -151,11 +151,11 @@ export default function DashboardPage() {
                 {file ? file.name : "Drop a file here, or click to browse"}
               </p>
               <p className="mt-1 text-center text-xs text-slate-500">
-                PDF, DOCX, TXT, MD, CSV, XLSX, HTML
+                PDF, DOCX, TXT, MD, CSV, XLSX, HTML, PPTX
               </p>
               <input
                 type="file"
-                accept=".pdf,.docx,.txt,.md,.csv,.xlsx,.html,.htm"
+                accept=".pdf,.docx,.txt,.md,.csv,.xlsx,.html,.htm,.pptx"
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
                 className="absolute inset-0 cursor-pointer opacity-0"
               />

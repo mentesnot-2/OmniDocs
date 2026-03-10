@@ -6,6 +6,7 @@ from parsers.txt_parser import parse_txt
 from parsers.csv_parser import parse_csv
 from parsers.xlsx_parser import parse_xlsx
 from parsers.html_parser import parse_html
+from parsers.pptx_parser import parse_pptx
 
 __all__ = [
     "ParsedDocument",
@@ -15,4 +16,5 @@ __all__ = [
     "parse_csv",
     "parse_xlsx",
     "parse_html",
+    "parse_pptx",
 ]
