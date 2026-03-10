@@ -38,3 +38,33 @@ OmniDocs is built with the assumption that it will be used in real production en
 - Maintainability and scalability
 - Security and reliability
 - Clear documentation and traceability
+
+
+---
+
+## 🚀 Setup
+
+### Prerequisites
+
+- Python 3.10+
+- Node.js 18+ (for frontend)
+
+### Backend
+
+# Clone and enter project
+cd OmniDocs
+
+# Create virtual environment
+python -m venv venv
+# Windows:
+venv\Scripts\activate
+# macOS/Linux:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Create .env in project root (see Environment below)
+# Start API
+uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+

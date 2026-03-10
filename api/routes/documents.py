@@ -1,5 +1,6 @@
 """Documents routes (upload, query)"""
 
+from api.utils.logging_config import logger
 from pathlib import Path
 from typing import List
 from pydantic import BaseModel
@@ -114,13 +115,16 @@ async def upload(
 
     try:
         parsed = ingest_document(dest_path)
+        logger.info(f"Document {file.filename} parsed successfully.")
     except Exception as e:
+        logger.error(f"Failed to parse document {file.filename}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to parse document: {str(e)}",
         )
 
     if not parsed.content.strip():
+        logger.error(f"Document {file.filename} is empty or contains no text.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Document is empty or contains no text.",
@@ -128,6 +132,7 @@ async def upload(
     
     chunks = chunk_document(parsed)
     if not chunks:
+        logger.error(f"No chunks produced from document {file.filename}.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No chunks produced from document.",

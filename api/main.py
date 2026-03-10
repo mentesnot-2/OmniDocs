@@ -9,6 +9,9 @@ from api.routes import auth, documents, chat
 from api.database import engine,Base
 from api.models import User
 from api.database import get_db
+from api.utils.logging_config import logger
+
+logger.info("Starting OmniDocs API")
 
 #Create tables on startup
 Base.metadata.create_all(bind=engine)
