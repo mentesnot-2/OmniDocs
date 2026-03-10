@@ -10,6 +10,9 @@ from api.database import engine,Base
 from api.models import User
 from api.database import get_db
 from api.utils.logging_config import logger
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 logger.info("Starting OmniDocs API")
 
@@ -20,6 +23,10 @@ app = FastAPI(
     description="API for OmniDocs RAG system",
     version="1.0.0",
 )
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,

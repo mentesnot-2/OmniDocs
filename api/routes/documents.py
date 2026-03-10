@@ -7,6 +7,8 @@ from pydantic import BaseModel
 from retrieval import Retriever
 from generation import AnswerGenerator
 from config import TOP_K, MAX_FILE_SIZE
+from slowapi.util import get_remote_address
+from slowapi import Limiter
 
 
 class QueryRequest(BaseModel):
@@ -31,7 +33,7 @@ from chunking import chunk_document
 from embeddings import EmbeddingGenerator
 from vectorstore import ChromaVectorStore
 
-
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/documents",tags=["documents"])
 
@@ -97,6 +99,7 @@ def delete_document(
         "filename": filename,
     }
 @router.post("/upload")
+@limiter.limit("10/minute") # 10 requests per minute
 async def upload(
     file:UploadFile = File(...),
     db:Session = Depends(get_db),
