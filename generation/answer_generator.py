@@ -1,17 +1,19 @@
 """
-LLM-based answer generation with context grounding."""
+LLM-based answer generation with context grounding.
+Supports Gemini (default) and OpenAI.
+"""
 
 from typing import Optional
 from dataclasses import dataclass
-from openai import OpenAI
-from config import OPENAI_API_KEY, LLM_MODEL
+from config import GEMINI_API_KEY, LLM_MODEL, LLM_PROVIDER, OPENAI_API_KEY
+
 
 @dataclass
 class GenerationResult:
     """Result of answer generation with context grounding."""
-    answer:str
-    source_used:list
-    refused:bool
+    answer: str
+    source_used: list
+    refused: bool
 
 
 SYSTEM_PROMPT = """You are a helpful assistant that answers questions based ONLY on the provided context.
@@ -31,48 +33,43 @@ USER_PROMPT = """Context from documents:
 Question: {query}
 Answer (based only on the context above):"""
 
+
 class AnswerGenerator:
-    """Generate answers from retrieved context using an LLM."""
+    """Generate answers from retrieved context using an LLM (Gemini or OpenAI)."""
     def __init__(
         self,
-        api_key:str=None,
-        model:str=LLM_MODEL,
-
+        api_key: str = None,
+        model: str = LLM_MODEL,
+        provider: str = LLM_PROVIDER,
     ):
-        """
-        Initialize the answer generator.
-        Args:
-            api_key: OpenAI API key (use config if None)
-            model: LLM model name
-        """
-        self.api_key = api_key or OPENAI_API_KEY
+        self.provider = (provider or "gemini").lower()
         self.model = model
+        self.api_key = api_key
 
-        if not self.api_key:
-            raise ValueError("OpenAI API key is required")
-        self.client = OpenAI(api_key=self.api_key)
-    
+        if self.provider == "gemini":
+            self.api_key = api_key or GEMINI_API_KEY
+            if not self.api_key:
+                raise ValueError("GEMINI_API_KEY is required. Get one at https://aistudio.google.com/apikey")
+            from google import genai
+            self._client = genai.Client(api_key=self.api_key)
+        elif self.provider == "openai":
+            self.api_key = api_key or OPENAI_API_KEY
+            if not self.api_key:
+                raise ValueError("OPENAI_API_KEY is required")
+            from openai import OpenAI
+            self._client = OpenAI(api_key=self.api_key)
+        else:
+            raise ValueError(f"Unsupported LLM provider: {self.provider}")
+
     def generate(
         self,
-        query:str,
-        context_text:str,
-        source_files:list[str],
-        message_history:list | None = None,
+        query: str,
+        context_text: str,
+        source_files: list[str],
+        message_history: list | None = None,
     ) -> GenerationResult:
-        """
-        Generate an answer to a question based on the provided context.
-        Args:
-            query: Natural language question
-            context_text: Context text from documents
-            source_files: List of source files used
-            message_history: Optional list of {"question": str, "answer": str} for follow-up context
-        Returns:
-            GenerationResult object containing the answer and source information
-        """
-
         source_files = source_files or []
 
-        # Reject if context is empty
         if not context_text or not context_text.strip():
             return GenerationResult(
                 answer="I cannot answer because no relevant documents were found.",
@@ -80,7 +77,6 @@ class AnswerGenerator:
                 refused=True,
             )
 
-        # Build query section: include previous Q&A if this is a follow-up
         if message_history and len(message_history) > 0:
             history_parts = []
             for item in message_history:
@@ -104,22 +100,30 @@ class AnswerGenerator:
             context=context_text,
             query=effective_query,
         )
+        full_prompt = f"{SYSTEM_PROMPT}\n\n{user_prompt}"
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content":SYSTEM_PROMPT},
-                    {"role": "user", "content":user_prompt},
-                ],
-                temperature=0.1,
-            )
-            answer = response.choices[0].message.content.strip()
+            if self.provider == "gemini":
+                response = self._client.models.generate_content(
+                    model=self.model,
+                    contents=full_prompt,
+                    config={"temperature": 0.1},
+                )
+                answer = (response.text or "").strip()
+            else:
+                response = self._client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.1,
+                )
+                answer = response.choices[0].message.content.strip()
 
-            # Heurstic: check if LLM refused
             refused = (
-                "cannot answer" in answer.lower() or
-                "provided documents" in answer.lower()
+                "cannot answer" in answer.lower()
+                or "provided documents" in answer.lower()
             )
             return GenerationResult(
                 answer=answer,
@@ -132,6 +136,3 @@ class AnswerGenerator:
                 source_used=[],
                 refused=True,
             )
-
-  
-

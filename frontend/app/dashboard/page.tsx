@@ -157,7 +157,7 @@ export default function DashboardPage() {
                 type="file"
                 accept=".pdf,.docx,.txt,.md,.csv,.xlsx,.html,.htm,.pptx"
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="absolute inset-0 cursor-pointer opacity-0"
+                className="absolute left-0 right-0 top-0 h-24 cursor-pointer opacity-0"
               />
               <button
                 type="submit"

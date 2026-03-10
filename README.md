@@ -51,20 +51,64 @@ OmniDocs is built with the assumption that it will be used in real production en
 
 ### Backend
 
-# Clone and enter project
+```bash
 cd OmniDocs
 
-# Create virtual environment
 python -m venv venv
 # Windows:
 venv\Scripts\activate
 # macOS/Linux:
 source venv/bin/activate
 
-# Install dependencies
 pip install -r requirements.txt
 
 # Create .env in project root (see Environment below)
-# Start API
 uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:3000 (frontend) and http://localhost:8000 (API).
+
+### Environment
+
+Create `.env` in the project root:
+
+```
+OPENAI_API_KEY=your-openai-api-key
+JWT_SECRET_KEY=your-secret-key-change-in-production
+```
+
+Optional (defaults shown):
+
+```
+EMBEDDING_PROVIDER=sentence-transformers
+EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+CHUNK_SIZE=512
+CHUNK_OVERLAP=50
+TOP_K=5
+MAX_FILE_SIZE=100
+```
+
+---
+
+## 📡 API Overview
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/auth/register` | Register (body: `email`, `password`) |
+| POST | `/auth/login` | Login (body: `email`, `password`) |
+| GET | `/documents/` | List documents (Auth: Bearer token) |
+| POST | `/documents/upload` | Upload file (Auth: Bearer token, form: `file`) |
+| DELETE | `/documents/{filename}` | Delete document (Auth: Bearer token) |
+| POST | `/documents/query` | Ask question (body: `question`, optional `message_history`) |
+| POST | `/chat/sessions` | Create chat session (Auth: Bearer token) |
+| GET | `/chat/sessions` | List sessions (Auth: Bearer token) |
+| GET | `/chat/sessions/{id}` | Get session messages (Auth: Bearer token) |
 

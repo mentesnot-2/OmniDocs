@@ -5,12 +5,10 @@ import logging
 import sys
 
 
-def setup_logging(level:str="INFO")->logging.Logger:
+def setup_logging(level: str = "INFO") -> logging.Logger:
     """Configure and return the application logger."""
-
     logger = logging.getLogger("omnidocs")
-    logger.setLevel(level)
-
+    logger.setLevel(getattr(logging, level.upper(), logging.INFO))
 
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
@@ -18,7 +16,8 @@ def setup_logging(level:str="INFO")->logging.Logger:
             "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
         ))
         logger.addHandler(handler)
-        return logger
+
+    return logger
 
 
 logger = setup_logging()

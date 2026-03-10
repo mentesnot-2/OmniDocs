@@ -36,3 +36,4 @@ email-validator>=2.0.0
 slowapi>=0.1.9
 
 python-pptx>=0.6.21
+google-genai>=0.2.0

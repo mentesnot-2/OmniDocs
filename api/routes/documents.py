@@ -22,7 +22,7 @@ class MessagePair(BaseModel):
     answer:str
 
 
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
 from api.database import get_db
@@ -99,11 +99,12 @@ def delete_document(
         "filename": filename,
     }
 @router.post("/upload")
-@limiter.limit("10/minute") # 10 requests per minute
+@limiter.limit("10/minute")
 async def upload(
-    file:UploadFile = File(...),
-    db:Session = Depends(get_db),
-    current_user:User = Depends(get_current_user),
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Upload document and index it for the current user."""
     # Save uploaded file to disk
@@ -176,10 +177,12 @@ async def upload(
 
 
 @router.post("/query")
+@limiter.limit("30/minute")
 def query(
-    body:QueryRequest,
-    db:Session = Depends(get_db),
-    current_user:User = Depends(get_current_user),
+    request: Request,
+    body: QueryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Answer a question based only on the current user's documents."""
     question = body.question.strip()

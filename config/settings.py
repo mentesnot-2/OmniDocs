@@ -36,8 +36,11 @@ TOP_K = int(os.getenv("TOP_K", "5"))
 
 # LLM (OpenAI)
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY","")
-LLM_MODEL = os.getenv("LLM_MODEL","gpt-4o-mini")
+# LLM (Gemini)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-flash-latest")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")  # gemini | openai
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")  # Optional, only if LLM_PROVIDER=openai
 
 
 def ensure_dirs():
