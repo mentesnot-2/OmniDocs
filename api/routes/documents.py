@@ -6,7 +6,7 @@ from typing import List
 from pydantic import BaseModel
 from retrieval import Retriever
 from generation import AnswerGenerator
-from config import TOP_K
+from config import TOP_K, MAX_FILE_SIZE
 
 
 class QueryRequest(BaseModel):
@@ -109,6 +109,14 @@ async def upload(
     dest_path = uploads_dir / file.filename
     
     content = await file.read()
+    size_mb = len(content) / (1024 * 1024)
+    if size_mb > MAX_FILE_SIZE:
+        logger.error(f"Document {file.filename} is too large. Maximum size is {MAX_FILE_SIZE} MB.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Document is too large. Maximum size is {MAX_FILE_SIZE} MB.",
+        )
+    logger.info(f"Document {file.filename} uploaded successfully. Size: {size_mb:.2f} MB.")
     with open(dest_path, "wb") as f:
         f.write(content)
     # Ingest, chunk, embed, and store
@@ -173,9 +181,17 @@ def query(
     """Answer a question based only on the current user's documents."""
     question = body.question.strip()
     if not question:
+        logger.error("Question cannot be empty.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Question cannot be empty.",
+        )
+    MAX_QUESTION_LEN = 2000
+    if len(question) > MAX_QUESTION_LEN:
+        logger.error(f"Question is too long. Maximum length is {MAX_QUESTION_LEN} characters.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Question is too long. Maximum length is {MAX_QUESTION_LEN} characters.",
         )
     retriever = Retriever()
     result = retriever.retrieve_with_context(
