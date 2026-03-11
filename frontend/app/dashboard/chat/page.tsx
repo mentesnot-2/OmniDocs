@@ -10,10 +10,8 @@ export default function ChatPage() {
   const router = useRouter();
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
-  const [answer, setAnswer] = useState<string | null>(null);
-  const [sources, setSources] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [messageHistory, setMessageHistory] = useState<{question: string, answer: string}[]>([]);
+  const [messageHistory, setMessageHistory] = useState<{question: string, answer: string, sources?: string[]}[]>([]);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
 
@@ -30,7 +28,7 @@ export default function ChatPage() {
     setSessionId(sid);
     getJson<{messages: {role:string,content:string}[]}>(`/chat/sessions/${sid}`)
       .then((res) => {
-        const pairs: {question:string,answer:string}[] = [];
+        const pairs: {question:string, answer:string, sources?: string[]}[] = [];
         const msgs = res.messages || [];
         for (let i = 0; i < msgs.length - 1; i += 2) {
           if (msgs[i]?.role === "user" && msgs[i + 1]?.role === "assistant") {
@@ -67,17 +65,17 @@ export default function ChatPage() {
     e.preventDefault();
     if (!question.trim()) return;
     setError(null);
-    setAnswer(null);
-    setSources([]);
     setLoading(true);
     try {
       const res = await postJson<{ question: string; message_history?: {question:string,answer:string}[]}, { answer: string; sources: string[] }>(
         "/documents/query",
         { question: question.trim(), message_history: messageHistory },
       );
-      setAnswer(res.answer);
-      setSources(res.sources || []);
-      setMessageHistory((prev) => [...prev,{question:question.trim(),answer:res.answer}]);
+      setMessageHistory((prev) => [...prev, {
+        question: question.trim(),
+        answer: res.answer,
+        sources: res.sources || [],
+      }]);
       if (sessionId) {
         postJson(`/chat/sessions/${sessionId}/messages`, {question:question.trim(),answer:res.answer}).catch(() => {})
       }
@@ -92,7 +90,6 @@ export default function ChatPage() {
   function switchSession(id: number) {
     setSessionId(id);
     setMessageHistory([]);
-    setAnswer(null);
     setError(null);
     window.location.href = `/dashboard/chat?session=${id}`;
   }
@@ -134,6 +131,12 @@ export default function ChatPage() {
               <div key={index} className="rounded-lg border border-slate-700 bg-slate-900/50 p-4 space-y-2">
                 <p className="text-sm font-medium text-slate-400">Q: {item.question}</p>
                 <p className="text-slate-200 whitespace-pre-wrap">{item.answer}</p>
+                {item.sources && item.sources.length > 0 && (
+                  <p className="text-xs text-slate-500 mt-2">
+                    <span className="font-medium text-slate-400">Sources: </span>
+                    {item.sources.join(", ")}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -160,20 +163,6 @@ export default function ChatPage() {
         {error && (
           <div className="rounded-md border border-red-800 bg-red-950/40 px-4 py-3 text-red-400 mb-6">
             {error}
-          </div>
-        )}
-
-        {answer && (
-          <div className="space-y-4 mb-6">
-            <div className="rounded-md border border-slate-700 bg-slate-900/50 px-4 py-4 text-slate-200 whitespace-pre-wrap">
-              {answer}
-            </div>
-            {sources.length > 0 && (
-              <div className="text-sm text-slate-400">
-                <span className="font-medium text-slate-300">Sources: </span>
-                {sources.join(", ")}
-              </div>
-            )}
           </div>
         )}
       </main>

@@ -5,7 +5,24 @@ Supports Gemini (default) and OpenAI.
 
 from typing import Optional
 from dataclasses import dataclass
+import logging
 from config import GEMINI_API_KEY, LLM_MODEL, LLM_PROVIDER, OPENAI_API_KEY
+
+logger = logging.getLogger("omnidocs")
+
+
+def _user_friendly_error(exc: Exception) -> str:
+    """Map technical errors to user-friendly messages."""
+    err_str = str(exc).lower()
+    if "503" in err_str or "unavailable" in err_str or "high demand" in err_str:
+        return "The AI service is busy right now. Please try again in a moment."
+    if "429" in err_str or "rate limit" in err_str or "quota" in err_str:
+        return "Too many requests. Please wait a moment and try again."
+    if "401" in err_str or "403" in err_str or "invalid" in err_str and "key" in err_str:
+        return "Unable to reach the AI service. Please check your configuration."
+    if "timeout" in err_str or "timed out" in err_str:
+        return "The request took too long. Please try again."
+    return "Something went wrong. Please try again later."
 
 
 @dataclass
@@ -131,8 +148,9 @@ class AnswerGenerator:
                 refused=refused,
             )
         except Exception as e:
+            logger.exception("LLM generation failed")
             return GenerationResult(
-                answer=f"An error occurred: {str(e)}",
+                answer=_user_friendly_error(e),
                 source_used=[],
                 refused=True,
             )
