@@ -55,9 +55,14 @@ def list_sessions(
     current_user:User = Depends(get_current_user),
 ):
     """List all chat sessions for the current user (newest first)."""
-    sessions = db.query(ChatSession).filter(
-        ChatSession.user_id == current_user.id,
-    ).order_by(ChatSession.created_at.desc()).all()
+    from sqlalchemy.orm import joinedload
+    sessions = (
+        db.query(ChatSession)
+        .options(joinedload(ChatSession.messages))
+        .filter(ChatSession.user_id == current_user.id)
+        .order_by(ChatSession.created_at.desc())
+        .all()
+    )
     return sessions
 
 @router.post("/sessions/{session_id}/messages")
