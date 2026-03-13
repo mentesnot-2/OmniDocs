@@ -6,7 +6,7 @@ from typing import List
 from pydantic import BaseModel
 from retrieval import Retriever
 from generation import AnswerGenerator
-from config import TOP_K, MAX_FILE_SIZE
+from config import TOP_K, MAX_FILE_SIZE, UPLOAD_DIR
 from slowapi.util import get_remote_address
 from slowapi import Limiter
 
@@ -44,7 +44,7 @@ def get_documents(
     current_user:User = Depends(get_current_user),
 ):
     """List all documents uploaded by by the current user."""
-    upload_dir = Path("data/uploads") / str(current_user.id)
+    upload_dir = UPLOAD_DIR / str(current_user.id)
     if not upload_dir.exists():
         return {"documents":[]}
     files = []
@@ -73,8 +73,7 @@ def delete_document(
 
 
     # Security: ensure path stays within user's folder
-    uploads_dir = Path("data/uploads") / str(current_user.id)
-    uploads_dir = uploads_dir.resolve()
+    uploads_dir = (UPLOAD_DIR / str(current_user.id)).resolve()
     file_path = (uploads_dir / filename).resolve()
 
     if file_path.parent != uploads_dir:
@@ -108,7 +107,7 @@ async def upload(
 ):
     """Upload document and index it for the current user."""
     # Save uploaded file to disk
-    uploads_dir = Path("data/uploads") / str(current_user.id)
+    uploads_dir = UPLOAD_DIR / str(current_user.id)
     uploads_dir.mkdir(parents=True, exist_ok=True)
     dest_path = uploads_dir / file.filename
     
