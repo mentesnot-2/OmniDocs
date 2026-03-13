@@ -49,25 +49,56 @@ export default function ChatPage() {
 
     if (id) {
       const sid = parseInt(id, 10);
-      if (isNaN(sid)) return;
-      setSessionId(sid);
-      loadSessionMessages(sid);
-    } else {
-      postJson<Record<string, never>, { id: number }>("/chat/sessions", {})
-        .then((res) => {
-          setSessionId(res.id);
-          window.history.replaceState({}, "", `/dashboard/chat?session=${res.id}`);
-        })
-        .catch((err: unknown) => {
-          setError(err instanceof Error ? err.message : "Failed to create chat session");
-        });
+      if (!isNaN(sid)) {
+        setSessionId(sid);
+        loadSessionMessages(sid);
+      }
+      getJson<SessionSummary[]>("/chat/sessions")
+        .then((list) => setSessions(list || []))
+        .catch(() => setSessions([]));
+      return;
     }
+
+    // No session in URL: reuse an empty session if one exists, otherwise create new
+    getJson<SessionSummary[]>("/chat/sessions")
+      .then((list) => {
+        const sessionsList = list || [];
+        setSessions(sessionsList);
+        const emptySession = sessionsList.find((s) => !s.messages || s.messages.length === 0);
+        if (emptySession) {
+          setSessionId(emptySession.id);
+          setMessageHistory([]);
+          window.history.replaceState({}, "", `/dashboard/chat?session=${emptySession.id}`);
+        } else {
+          postJson<Record<string, never>, { id: number }>("/chat/sessions", {})
+            .then((res) => {
+              setSessionId(res.id);
+              setSessions((prev) => [{ id: res.id, user_id: 0, created_at: new Date().toISOString(), messages: [] }, ...prev]);
+              window.history.replaceState({}, "", `/dashboard/chat?session=${res.id}`);
+            })
+            .catch((err: unknown) => {
+              setError(err instanceof Error ? err.message : "Failed to create chat session");
+            });
+        }
+      })
+      .catch(() => {
+        postJson<Record<string, never>, { id: number }>("/chat/sessions", {})
+          .then((res) => {
+            setSessionId(res.id);
+            window.history.replaceState({}, "", `/dashboard/chat?session=${res.id}`);
+          })
+          .catch((err: unknown) => {
+            setError(err instanceof Error ? err.message : "Failed to create chat session");
+          });
+      });
   }, []);
 
   useEffect(() => {
-    getJson<SessionSummary[]>("/chat/sessions")
-      .then((list) => setSessions(list || []))
-      .catch(() => setSessions([]));
+    if (sessionId != null) {
+      getJson<SessionSummary[]>("/chat/sessions")
+        .then((list) => setSessions(list || []))
+        .catch(() => setSessions([]));
+    }
   }, [sessionId]);
 
   async function handleSubmit(e: React.FormEvent) {

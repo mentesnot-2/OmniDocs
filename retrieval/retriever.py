@@ -10,7 +10,7 @@ from config import TOP_K
 
 @dataclass
 class RetrievalResult:
-    """A single retrieved chunk with metada"""
+    """A single retrieved chunk with metadata"""
     text: str
     source_file: str
     chunk_index: int
