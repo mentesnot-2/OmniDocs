@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { postJson } from "@/lib/api";
+import { setAuthCookie } from "@/lib/auth-cookie";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function SignupPage() {
       if (typeof window !== "undefined") {
         localStorage.setItem("omnidocs_token", res.access_token);
         localStorage.setItem("omnidocs_user", JSON.stringify(res.user));
+        setAuthCookie(res.access_token);
       }
       router.push("/dashboard");
     } catch (err: any) {

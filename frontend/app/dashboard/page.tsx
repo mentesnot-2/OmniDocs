@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { postFormData, getJson, deleteRequest } from "@/lib/api";
+import { clearAuthCookie } from "@/lib/auth-cookie";
 
 function formatDate(timestamp: number) {
   const d = new Date(timestamp * 1000);
@@ -33,9 +34,11 @@ export default function DashboardPage() {
           .then((res) => setDocuments(res.documents || []))
           .catch(() => setDocuments([]));
       } catch {
+        clearAuthCookie();
         router.push("/login");
       }
     } else {
+      clearAuthCookie();
       router.push("/login");
     }
   }, [router]);
@@ -56,6 +59,7 @@ export default function DashboardPage() {
   function handleLogout() {
     localStorage.removeItem("omnidocs_token");
     localStorage.removeItem("omnidocs_user");
+    clearAuthCookie();
     router.push("/login");
   }
 
