@@ -1,16 +1,22 @@
 """Auth routes (signup, login)"""
 
-from fastapi import APIRouter,Depends,HTTPException,status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 from api.database import get_db
 from api.models import User
-from api.schemas.user import UserSignup,UserLogin,UserResponse,TokenResponse
-from api.core.security import hash_password,verify_password,create_access_token
+from api.schemas.user import UserSignup, UserLogin, UserResponse, TokenResponse
+from api.core.security import hash_password, verify_password, create_access_token
 
-router = APIRouter(prefix="/auth",tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
+limiter = Limiter(key_func=get_remote_address)
 
-@router.post("/signup",response_model=TokenResponse)
-def signup(data:UserSignup,db:Session=Depends(get_db)):
+
+@router.post("/signup", response_model=TokenResponse)
+@limiter.limit("5/minute")
+def signup(request: Request, data: UserSignup, db: Session = Depends(get_db)):
     # Check if email exists
     existing = db.query(User).filter(User.email == data.email).first()
 
@@ -35,8 +41,9 @@ def signup(data:UserSignup,db:Session=Depends(get_db)):
         user=UserResponse(id=user.id,email=user.email)
     )
 
-@router.post("/login",response_model=TokenResponse)
-def login(data:UserLogin,db:Session=Depends(get_db)):
+@router.post("/login", response_model=TokenResponse)
+@limiter.limit("5/minute")
+def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
     # Check if email exists
     user = db.query(User).filter(User.email == data.email).first()
 
