@@ -1,22 +1,38 @@
-""" Common dependencies (auth)."""
+"""Common dependencies (auth)."""
 
-from typing import Generator
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from api.database import get_db
 from api.models import User
 from api.core.security import decode_token
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+AUTH_COOKIE = "omnidocs_token"
+http_bearer = HTTPBearer(auto_error=False)
+
+
+async def get_token(request: Request) -> str | None:
+    """Prefer HttpOnly cookie; fallback to Authorization header."""
+    token = request.cookies.get(AUTH_COOKIE)
+    if token:
+        return token
+    creds: HTTPAuthorizationCredentials | None = await http_bearer(request)
+    if creds:
+        return creds.credentials
+    return None
 
 
 def get_current_user(
-    token:str = Depends(oauth2_scheme),
-    db:Session = Depends(get_db),
+    token: str | None = Depends(get_token),
+    db: Session = Depends(get_db),
 ) -> User:
-    """Return the authenticated user from JWT token."""
+    """Return the authenticated user from JWT token (cookie or Authorization header)."""
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
     payload = decode_token(token)
     if payload is None or "sub" not in payload:
         raise HTTPException(

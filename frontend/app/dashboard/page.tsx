@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { postFormData, getJson, deleteRequest } from "@/lib/api";
-import { clearAuthCookie } from "@/lib/auth-cookie";
+import { postFormData, getJson, postJson, deleteRequest } from "@/lib/api";
 
 function formatDate(timestamp: number) {
   const d = new Date(timestamp * 1000);
@@ -26,21 +25,16 @@ export default function DashboardPage() {
   const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
-    const raw = localStorage.getItem("omnidocs_user");
-    if (raw) {
-      try {
-        setUser(JSON.parse(raw));
-        getJson<{ documents: { filename: string; uploaded_at: number }[] }>("/documents/")
-          .then((res) => setDocuments(res.documents || []))
-          .catch(() => setDocuments([]));
-      } catch {
-        clearAuthCookie();
+    getJson<{ id: number; email: string }>("/auth/me")
+      .then((me) => {
+        setUser(me);
+        return getJson<{ documents: { filename: string; uploaded_at: number }[] }>("/documents/");
+      })
+      .then((res) => setDocuments(res.documents || []))
+      .catch(() => {
+        setUser(null);
         router.push("/login");
-      }
-    } else {
-      clearAuthCookie();
-      router.push("/login");
-    }
+      });
   }, [router]);
 
   async function handleDelete(filename: string) {
@@ -56,10 +50,12 @@ export default function DashboardPage() {
     }
   }
 
-  function handleLogout() {
-    localStorage.removeItem("omnidocs_token");
-    localStorage.removeItem("omnidocs_user");
-    clearAuthCookie();
+  async function handleLogout() {
+    try {
+      await postJson("/auth/logout", {});
+    } catch {
+      // ignore
+    }
     router.push("/login");
   }
 

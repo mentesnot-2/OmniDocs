@@ -1,23 +1,11 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-function getToken() : string | null {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("omnidocs_token") || null;
-}
-
+const API_BASE = typeof window !== "undefined" ? "/api" : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000");
 
 export async function postJson<TReq, Tres>(path: string, body: TReq): Promise<Tres> {
-    const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-    };
-    const token = getToken();
-    if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-    }
     const response = await fetch(`${API_BASE}${path}`, {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        credentials: "include",
     });
     if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -26,16 +14,11 @@ export async function postJson<TReq, Tres>(path: string, body: TReq): Promise<Tr
     return response.json();
 }
 
-export async function postFormData(path:string, formData:FormData) : Promise<any> {
-    const token = getToken();
-    const headers: Record<string, string> = {}
-
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-
+export async function postFormData(path: string, formData: FormData): Promise<any> {
     const response = await fetch(`${API_BASE}${path}`, {
         method: "POST",
-        headers,
         body: formData,
+        credentials: "include",
     });
 
     if (!response.ok) {
@@ -45,15 +28,10 @@ export async function postFormData(path:string, formData:FormData) : Promise<any
     return response.json();
 }
 
-export async function getJson<T>(path:string) : Promise<T> {
-    const token = getToken();
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-
-
+export async function getJson<T>(path: string): Promise<T> {
     const response = await fetch(`${API_BASE}${path}`, {
         method: "GET",
-        headers,
+        credentials: "include",
     });
     if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -63,13 +41,10 @@ export async function getJson<T>(path:string) : Promise<T> {
 }
 
 
-export async function deleteRequest(path:string) : Promise<any> {
-    const token = getToken();
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    const response = await fetch(`${API_BASE}${path}`,{
+export async function deleteRequest(path: string): Promise<any> {
+    const response = await fetch(`${API_BASE}${path}`, {
         method: "DELETE",
-        headers,
+        credentials: "include",
     });
 
     if (!response.ok) {
