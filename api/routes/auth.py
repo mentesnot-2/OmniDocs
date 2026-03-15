@@ -1,4 +1,4 @@
-"""Auth routes (signup, login, logout, me)"""
+"""Auth routes (signup, login, logout, me, refresh)"""
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
@@ -8,31 +8,52 @@ from slowapi.util import get_remote_address
 from api.database import get_db
 from api.models import User
 from api.schemas.user import UserSignup, UserLogin, UserResponse, TokenResponse
-from api.core.security import hash_password, verify_password, create_access_token
+from api.core.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+)
 from api.dependencies import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 limiter = Limiter(key_func=get_remote_address)
 
 AUTH_COOKIE = "omnidocs_token"
-COOKIE_MAX_AGE = 60 * 60 * 24  # 1 day
+REFRESH_COOKIE = "omnidocs_refresh"
+ACCESS_COOKIE_MAX_AGE = 60 * 15  # 15 min (match access token)
+REFRESH_COOKIE_MAX_AGE = 60 * 60 * 24 * 7  # 7 days
 
 
-def _response_with_cookie(user: User, token: str) -> Response:
+def _set_auth_cookies(resp: Response, access_token: str, refresh_token: str) -> None:
+    resp.set_cookie(
+        key=AUTH_COOKIE,
+        value=access_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=ACCESS_COOKIE_MAX_AGE,
+        path="/",
+    )
+    resp.set_cookie(
+        key=REFRESH_COOKIE,
+        value=refresh_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=REFRESH_COOKIE_MAX_AGE,
+        path="/",
+    )
+
+
+def _response_with_cookies(user: User, access_token: str, refresh_token: str) -> Response:
     body = TokenResponse(
-        access_token=token,
+        access_token=access_token,
         user=UserResponse(id=user.id, email=user.email),
     )
     resp = Response(content=body.model_dump_json(), media_type="application/json")
-    resp.set_cookie(
-        key=AUTH_COOKIE,
-        value=token,
-        httponly=True,
-        secure=False,  # True in production over HTTPS
-        samesite="lax",
-        max_age=COOKIE_MAX_AGE,
-        path="/",
-    )
+    _set_auth_cookies(resp, access_token, refresh_token)
     return resp
 
 
@@ -52,8 +73,9 @@ def signup(request: Request, data: UserSignup, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
-    token = create_access_token(data={"sub": str(user.id)})
-    return _response_with_cookie(user, token)
+    access_token = create_access_token(data={"sub": str(user.id)})
+    refresh_token = create_refresh_token(user.id)
+    return _response_with_cookies(user, access_token, refresh_token)
 
 
 @router.post("/login")
@@ -65,8 +87,41 @@ def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
-    token = create_access_token(data={"sub": str(user.id)})
-    return _response_with_cookie(user, token)
+    access_token = create_access_token(data={"sub": str(user.id)})
+    refresh_token = create_refresh_token(user.id)
+    return _response_with_cookies(user, access_token, refresh_token)
+
+
+@router.post("/refresh")
+def refresh(request: Request, db: Session = Depends(get_db)):
+    """Issue new access (and refresh) tokens using the refresh cookie. Silent refresh."""
+    refresh_token = request.cookies.get(REFRESH_COOKIE)
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No refresh token",
+        )
+    payload = decode_refresh_token(refresh_token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        )
+    user_id = int(payload["sub"])
+    user = db.query(User).get(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+        )
+    access_token = create_access_token(data={"sub": str(user.id)})
+    new_refresh_token = create_refresh_token(user.id)
+    resp = Response(
+        content=UserResponse(id=user.id, email=user.email).model_dump_json(),
+        media_type="application/json",
+    )
+    _set_auth_cookies(resp, access_token, new_refresh_token)
+    return resp
 
 
 @router.get("/me", response_model=UserResponse)
@@ -78,5 +133,6 @@ def me(current_user: User = Depends(get_current_user)):
 def logout():
     resp = Response(content='{"detail":"Logged out"}', media_type="application/json")
     resp.delete_cookie(key=AUTH_COOKIE, path="/")
+    resp.delete_cookie(key=REFRESH_COOKIE, path="/")
     return resp
     

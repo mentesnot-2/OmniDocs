@@ -7,7 +7,8 @@ from jose import JWTError, jwt
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret-change-in-production")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
+ACCESS_TOKEN_EXPIRE_MINUTES = 15  # short-lived; refresh before expiry
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 # bcrypt has a 72-byte limit; truncate to avoid ValueError
 BCRYPT_MAX_PASSWORD_BYTES = 72
@@ -27,15 +28,27 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(raw, hashed_password.encode("utf-8"))
 
 
-def create_access_token(data:dict)->str:
+def create_access_token(data: dict) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp":expire})
-    return jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM)
+    to_encode["exp"] = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def decode_token(token:str)->dict | None:
+
+def create_refresh_token(user_id: int) -> str:
+    to_encode = {"sub": str(user_id), "type": "refresh"}
+    to_encode["exp"] = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_token(token: str) -> dict | None:
     try:
-        payload = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
-        return payload
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
         return None
+
+
+def decode_refresh_token(token: str) -> dict | None:
+    payload = decode_token(token)
+    if payload is None or payload.get("type") != "refresh" or "sub" not in payload:
+        return None
+    return payload

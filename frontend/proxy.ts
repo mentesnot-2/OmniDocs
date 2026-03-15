@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const AUTH_COOKIE = "omnidocs_token";
+const REFRESH_COOKIE = "omnidocs_refresh";
 
 const PROTECTED_PATHS = ["/dashboard"];
 const AUTH_PATHS = ["/login", "/signup"];
@@ -14,17 +15,20 @@ function isAuthPage(pathname: string): boolean {
   return AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
+function hasAuth(request: NextRequest): boolean {
+  return !!(request.cookies.get(AUTH_COOKIE)?.value || request.cookies.get(REFRESH_COOKIE)?.value);
+}
+
 export function proxy(request: NextRequest) {
-  const token = request.cookies.get(AUTH_COOKIE)?.value;
   const { pathname } = request.nextUrl;
 
-  if (isProtected(pathname) && !token) {
+  if (isProtected(pathname) && !hasAuth(request)) {
     const url = new URL("/login", request.url);
     url.searchParams.set("from", pathname);
     return NextResponse.redirect(url);
   }
 
-  if (isAuthPage(pathname) && token) {
+  if (isAuthPage(pathname) && hasAuth(request)) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
