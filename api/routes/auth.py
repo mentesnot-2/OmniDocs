@@ -16,6 +16,8 @@ from api.core.security import (
     decode_refresh_token,
 )
 from api.dependencies import get_current_user
+from config.settings import EMAIL_VERIFICATION_REQUIRED,EMAIL_VERIFICATION_BASE_URL
+from api.utils.email import send_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 limiter = Limiter(key_func=get_remote_address)
@@ -70,9 +72,27 @@ def signup(request: Request, data: UserSignup, db: Session = Depends(get_db)):
         email=data.email,
         hashed_password=hash_password(data.password),
     )
+
+    user.is_verified = not EMAIL_VERIFICATION_REQUIRED
+    if EMAIL_VERIFICATION_REQUIRED:
+        user.verification_token = User.generate_Verification_token()
+        user.verification_expires_at = User.verification_expiry()
     db.add(user)
     db.commit()
     db.refresh(user)
+    if EMAIL_VERIFICATION_REQUIRED:
+        verify_link = f"{EMAIL_VERIFICATION_BASE_URL}/verify-email?token={user.verification_token}"
+        send_email(
+            to=user.email,
+            subject="Verify your OmniDocs account",
+            body=f"Click the link to verify your email:\n\n{verify_link}\n\nIf you did not sign up, ignore this email"
+        )
+
+        return Response(
+            content='{"detail":"Verification email sent. Please check your inbox."}',
+            media_type="application/json",
+            status_code=status.HTTP_201_CREATED
+        )
     access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token = create_refresh_token(user.id)
     return _response_with_cookies(user, access_token, refresh_token)
@@ -136,3 +156,15 @@ def logout():
     resp.delete_cookie(key=REFRESH_COOKIE, path="/")
     return resp
     
+
+@router.get("/verify/{token}")
+def verify_email(token:str,db:Session=Depends(get_db)):
+    user = db.query(User).filter(User.verification_token == token).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid verification token",
+        )
+    
+    if user.verification_expires_at and useer.verification_expires_at < datetime.utcnow():
+        
