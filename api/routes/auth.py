@@ -2,8 +2,6 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from datetime import datetime
 
 from api.database import get_db
@@ -19,9 +17,9 @@ from api.core.security import (
 from api.dependencies import get_current_user
 from config.settings import EMAIL_VERIFICATION_REQUIRED,EMAIL_VERIFICATION_BASE_URL
 from api.utils.email import send_email
+from api.rate_limiter import limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-limiter = Limiter(key_func=get_remote_address)
 
 AUTH_COOKIE = "omnidocs_token"
 REFRESH_COOKIE = "omnidocs_refresh"

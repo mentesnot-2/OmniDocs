@@ -10,13 +10,15 @@ from api.database import engine,Base
 from api.models import User
 from api.database import get_db
 from api.utils.logging_config import logger
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from api.rate_limiter import limiter
+from config import ensure_dirs
 
 logger.info("Starting OmniDocs API")
 
 #Create tables on startup
+ensure_dirs()
 Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="OmniDocs API",
@@ -24,7 +26,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

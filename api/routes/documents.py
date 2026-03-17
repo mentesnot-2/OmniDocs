@@ -7,8 +7,7 @@ from pydantic import BaseModel
 from retrieval import Retriever
 from generation import AnswerGenerator
 from config import TOP_K, MAX_FILE_SIZE, UPLOAD_DIR
-from slowapi.util import get_remote_address
-from slowapi import Limiter
+from api.rate_limiter import limiter
 
 
 class QueryRequest(BaseModel):
@@ -33,8 +32,6 @@ from chunking import chunk_document
 from embeddings import EmbeddingGenerator
 from vectorstore import ChromaVectorStore
 
-limiter = Limiter(key_func=get_remote_address)
-
 router = APIRouter(prefix="/documents",tags=["documents"])
 
 
@@ -55,7 +52,7 @@ def get_documents(
                 "uploaded_at":f.stat().st_mtime, # unix timestamp
             })
 
-            # Sort by uplaoded_at descending (newest first)
+            # Sort by uploaded_at descending (newest first)
     files.sort(key=lambda x : x["uploaded_at"], reverse=True)
     return {"documents":files}
 @router.delete("/{filename}")
