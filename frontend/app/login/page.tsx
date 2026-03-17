@@ -22,7 +22,12 @@ export default function LoginPage() {
       );
       router.push("/dashboard");
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      const msg = err?.message || "Login failed"
+      if (msg.includes("Email not verified")) {
+        setError("Email not verified. Please check your inbox, then login.")
+      } else {
+        setError(msg)
+      }
     } finally {
       setLoading(false);
     }

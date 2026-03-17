@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from datetime import datetime
 
 from api.database import get_db
 from api.models import User
@@ -107,6 +108,11 @@ def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
+    if EMAIL_VERIFICATION_REQUIRED and not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified. Please check inbox"
+        )
     access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token = create_refresh_token(user.id)
     return _response_with_cookies(user, access_token, refresh_token)
@@ -166,5 +172,15 @@ def verify_email(token:str,db:Session=Depends(get_db)):
             detail="Invalid verification token",
         )
     
-    if user.verification_expires_at and useer.verification_expires_at < datetime.utcnow():
-        
+    if user.verification_expires_at and user.verification_expires_at < datetime.utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification token has expired"
+        )
+    
+    user.is_Verified = True
+    user.verification_token = None
+    user.verification_expires_at = None
+    db.commit()
+    db.refresh()
+

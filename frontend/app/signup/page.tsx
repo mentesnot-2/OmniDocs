@@ -10,16 +10,21 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      await postJson<{ email: string; password: string }, { user: { id: number; email: string } }>(
+      const res = await postJson<{ email: string; password: string }, { detail?: string }>(
         "/auth/signup",
         { email, password },
       );
+
+      if (res?.detail?.includes("Verification email sent")) {
+        setInfo("Verification email sent. Please check your inbox, then login.")
+      }
       router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Signup failed");
@@ -75,6 +80,11 @@ export default function SignupPage() {
           >
             {loading ? "Creating account..." : "Sign up"}
           </button>
+          {info && 
+           < p className="text-sm text-emerald-400 bg-emerald-950/30 border border-emerald-700 rounded-md px-3 py-2">
+            {info}
+           </p>
+          }
           <p className="text-sm text-slate-400 text-center">
             Already have an account?{" "}
             <a href="/login" className="text-emerald-400 hover:underline">
