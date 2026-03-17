@@ -23,7 +23,9 @@ export default function SignupPage() {
       );
 
       if (res?.detail?.includes("Verification email sent")) {
-        setInfo("Verification email sent. Please check your inbox, then login.")
+        setInfo("Verification email sent. Please check your inbox, then log in.");
+        setTimeout(() => router.push("/login"), 1500);
+        return;
       }
       router.push("/dashboard");
     } catch (err: any) {
@@ -80,11 +82,11 @@ export default function SignupPage() {
           >
             {loading ? "Creating account..." : "Sign up"}
           </button>
-          {info && 
-           < p className="text-sm text-emerald-400 bg-emerald-950/30 border border-emerald-700 rounded-md px-3 py-2">
-            {info}
-           </p>
-          }
+          {info && (
+            <p className="text-sm text-emerald-400 bg-emerald-950/30 border border-emerald-700 rounded-md px-3 py-2">
+              {info}
+            </p>
+          )}
           <p className="text-sm text-slate-400 text-center">
             Already have an account?{" "}
             <a href="/login" className="text-emerald-400 hover:underline">

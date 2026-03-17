@@ -76,7 +76,7 @@ def signup(request: Request, data: UserSignup, db: Session = Depends(get_db)):
 
     user.is_verified = not EMAIL_VERIFICATION_REQUIRED
     if EMAIL_VERIFICATION_REQUIRED:
-        user.verification_token = User.generate_Verification_token()
+        user.verification_token = User.generate_verification_token()
         user.verification_expires_at = User.verification_expiry()
     db.add(user)
     db.commit()
@@ -178,9 +178,10 @@ def verify_email(token:str,db:Session=Depends(get_db)):
             detail="Verification token has expired"
         )
     
-    user.is_Verified = True
+    user.is_verified = True
     user.verification_token = None
     user.verification_expires_at = None
     db.commit()
-    db.refresh()
+    db.refresh(user)
+    return {"detail": "Email verified successfully. You can now log in."}
 
