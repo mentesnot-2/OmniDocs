@@ -24,6 +24,9 @@ class User(Base):
     auth_provider = Column(String(255),nullable=True)
     oauth_sub = Column(String(255),nullable=True,index=True)
 
+    is_admin = Column(Boolean, nullable=False,server_default="0")
+    is_active = Column(Boolean, nullable=False,server_default="1")
+
     @staticmethod
     def generate_verification_token():
         return secrets.token_urlsafe(32)
