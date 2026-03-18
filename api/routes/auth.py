@@ -240,6 +240,12 @@ def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
+        
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is not active. Please contact support.",
+        )
     if EMAIL_VERIFICATION_REQUIRED and not user.is_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
