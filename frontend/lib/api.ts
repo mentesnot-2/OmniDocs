@@ -1,4 +1,4 @@
-const API_BASE = typeof window !== "undefined" ? "/api" : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000");
+const API_BASE = typeof window !== "undefined" ? "/api" : (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000");
 
 /** Call /auth/refresh to get new tokens. Returns true if refresh succeeded. */
 async function tryRefresh(): Promise<boolean> {

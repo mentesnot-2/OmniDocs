@@ -21,6 +21,8 @@ class User(Base):
     verification_token = Column(String(255),unique=True,index=True,nullable=True)
     verification_expires_at = Column(DateTime(timezone=True),nullable=True)
 
+    auth_provider = Column(String(255),nullable=True)
+    oauth_sub = Column(String(255),nullable=True,index=True)
 
     @staticmethod
     def generate_verification_token():

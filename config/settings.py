@@ -54,6 +54,18 @@ SMTP_PASSWORD=os.getenv("SMTP_PASSWORD","")
 SMTP_USE_TLS=os.getenv("SMTP_USE_TLS","false").lower() == "true"
 SMTP_USE_SSL=os.getenv("SMTP_USE_SSL","false").lower() == "true"
 
+MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "25"))
+MAX_USER_STORAGE_MB = int(os.getenv("MAX_USER_STORAGE_MB", "500"))
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".csv", ".xlsx", ".html", ".htm", ".pptx"}
+
+
+SSO_ENABLED = os.getenv("SSO_ENABLED", "false").lower() == "true"
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
+BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://127.0.0.1:8000")
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
 def ensure_dirs():
     """Create data directories if they don't exist"""
     DATA_DIR.mkdir(parents=True, exist_ok=True)

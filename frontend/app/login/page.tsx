@@ -76,6 +76,15 @@ export default function LoginPage() {
           >
             {loading ? "Logging in..." : "Log in"}
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = "/api/auth/oauth/google/start";
+            }}
+            className="w-full rounded-md border border-slate-700 bg-slate-900 text-slate-100 font-medium py-2.5 hover:bg-slate-800"
+          >
+            Continue with Google
+          </button>
           <p className="text-sm text-slate-400 text-center">
             Don&apos;t have an account?{" "}
             <a href="/signup" className="text-emerald-400 hover:underline">

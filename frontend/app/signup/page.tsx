@@ -82,6 +82,15 @@ export default function SignupPage() {
           >
             {loading ? "Creating account..." : "Sign up"}
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = "/api/auth/oauth/google/start";
+            }}
+            className="w-full rounded-md border border-slate-700 bg-slate-900 text-slate-100 font-medium py-2.5 hover:bg-slate-800"
+          >
+            Continue with Google
+          </button>
           {info && (
             <p className="text-sm text-emerald-400 bg-emerald-950/30 border border-emerald-700 rounded-md px-3 py-2">
               {info}

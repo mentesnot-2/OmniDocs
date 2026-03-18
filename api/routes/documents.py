@@ -6,8 +6,15 @@ from typing import List
 from pydantic import BaseModel
 from retrieval import Retriever
 from generation import AnswerGenerator
-from config import TOP_K, MAX_FILE_SIZE, UPLOAD_DIR
+from config import (
+    TOP_K,
+    UPLOAD_DIR,
+    ALLOWED_EXTENSIONS,
+    MAX_FILE_SIZE_MB,
+    MAX_USER_STORAGE_MB,
+)
 from api.rate_limiter import limiter
+from api.storage import dir_size_bytes
 
 
 class QueryRequest(BaseModel):
@@ -103,6 +110,14 @@ async def upload(
     current_user: User = Depends(get_current_user),
 ):
     """Upload document and index it for the current user."""
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        logger.error(f"File {file.filename} has an invalid extension. Allowed extensions are {ALLOWED_EXTENSIONS}.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File {file.filename} has an invalid extension. Allowed extensions are {ALLOWED_EXTENSIONS}.",
+        )
     # Save uploaded file to disk
     uploads_dir = UPLOAD_DIR / str(current_user.id)
     uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -110,11 +125,20 @@ async def upload(
     
     content = await file.read()
     size_mb = len(content) / (1024 * 1024)
-    if size_mb > MAX_FILE_SIZE:
-        logger.error(f"Document {file.filename} is too large. Maximum size is {MAX_FILE_SIZE} MB.")
+    if size_mb > MAX_FILE_SIZE_MB:
+        logger.error(f"Document {file.filename} is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Document is too large. Maximum size is {MAX_FILE_SIZE} MB.",
+            detail=f"Document is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.",
+        )
+    used = dir_size_bytes(uploads_dir)
+    incoming = len(content)
+    quota = MAX_USER_STORAGE_MB * 1024 * 1024
+    if used + incoming > quota:
+        logger.error(f"User {current_user.id} exceeded storage quota ({MAX_USER_STORAGE_MB} MB).")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Storage quota exceeded.",
         )
     logger.info(f"Document {file.filename} uploaded successfully. Size: {size_mb:.2f} MB.")
     with open(dest_path, "wb") as f:
@@ -220,4 +244,22 @@ def query(
         "answer":response.answer,
         "sources":source_files,
         "refused":response.refused
+    }
+
+
+# Add quota endpoint
+# add Get /documents/storage returning { used_bytes, limit_bytes, used_percent }
+@router.get("/storage")
+def get_storage(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get the storage usage for the current user."""
+    uploads_dir = UPLOAD_DIR / str(current_user.id)
+    used = dir_size_bytes(uploads_dir)
+    limit = MAX_USER_STORAGE_MB * 1024 * 1024
+    return {
+        "used_bytes": used,
+        "limit_bytes": limit,
+        "used_percent": used / limit,
     }
