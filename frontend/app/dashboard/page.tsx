@@ -15,7 +15,7 @@ function formatDate(timestamp: number) {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ id: number; email: string } | null>(null);
+  const [user, setUser] = useState<{ id: number; email: string; is_admin: boolean } | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -25,7 +25,7 @@ export default function DashboardPage() {
   const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
-    getJson<{ id: number; email: string }>("/auth/me")
+    getJson<{ id: number; email: string; is_admin: boolean }>("/auth/me")
       .then((me) => {
         setUser(me);
         return getJson<{ documents: { filename: string; uploaded_at: number }[] }>("/documents/");
@@ -109,6 +109,14 @@ export default function DashboardPage() {
           </a>
           <div className="flex items-center gap-4">
             <span className="text-sm text-slate-500">{user.email}</span>
+            {user.is_admin && (
+              <a
+                href="/dashboard/admin"
+                className="rounded-lg px-3 py-1.5 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white"
+              >
+                Admin
+              </a>
+            )}
             <button
               onClick={handleLogout}
               className="rounded-lg px-3 py-1.5 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white"

@@ -63,7 +63,7 @@ def _set_auth_cookies(resp: Response, access_token: str, refresh_token: str) -> 
 def _response_with_cookies(user: User, access_token: str, refresh_token: str) -> Response:
     body = TokenResponse(
         access_token=access_token,
-        user=UserResponse(id=user.id, email=user.email),
+        user=UserResponse(id=user.id, email=user.email, is_admin=bool(user.is_admin)),
     )
     resp = Response(content=body.model_dump_json(), media_type="application/json")
     _set_auth_cookies(resp, access_token, refresh_token)
@@ -281,7 +281,7 @@ def refresh(request: Request, db: Session = Depends(get_db)):
     access_token = create_access_token(data={"sub": str(user.id)})
     new_refresh_token = create_refresh_token(user.id)
     resp = Response(
-        content=UserResponse(id=user.id, email=user.email).model_dump_json(),
+        content=UserResponse(id=user.id, email=user.email, is_admin=bool(user.is_admin)).model_dump_json(),
         media_type="application/json",
     )
     _set_auth_cookies(resp, access_token, new_refresh_token)
@@ -290,7 +290,11 @@ def refresh(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserResponse)
 def me(current_user: User = Depends(get_current_user)):
-    return UserResponse(id=current_user.id, email=current_user.email)
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        is_admin=bool(current_user.is_admin),
+    )
 
 
 @router.post("/logout")

@@ -49,6 +49,7 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: int
     email: EmailStr
+    is_admin: bool = False
 
     class Config:
         from_attributes = True
