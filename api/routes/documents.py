@@ -51,6 +51,7 @@ def _track_usage_event(db: Session, user_id: int, event_type: str) -> None:
         logger.warning(f"Failed to record usage event '{event_type}' for user {user_id}: {exc}")
 
 
+@router.get("")
 @router.get("/")
 def get_documents(
     db:Session = Depends(get_db),

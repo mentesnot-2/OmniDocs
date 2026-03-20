@@ -47,11 +47,19 @@ EMAIL_VERIFICATION_REQUIRED=os.getenv("EMAIL_VERIFICATION_REQUIRED","false").low
 EMAIL_SENDER=os.getenv("EMAIL_SENDER","mentesnotsibatu63@gmail.com")
 EMAIL_VERIFICATION_BASE_URL=os.getenv("EMAIL_VERIFICATION_BASE_URL","http://localhost:3000")
 
-SMTP_HOST=os.getenv("SMTP_HOST","localhost")
-SMTP_PORT=int(os.getenv("SMTP_PORT","25"))
-SMTP_USERNAME=os.getenv("SMTP_USERNAME","")
-SMTP_PASSWORD=os.getenv("SMTP_PASSWORD","")
-SMTP_USE_TLS=os.getenv("SMTP_USE_TLS","false").lower() == "true"
+# Mailtrap SMTP settings (preferred)
+MAILTRAP_TOKEN = os.getenv("MAILTRAP_TOKEN", "")
+MAILTRAP_HOST = os.getenv("MAILTRAP_HOST", "")
+MAILTRAP_PORT = int(os.getenv("MAILTRAP_PORT", "2525"))
+MAILTRAP_USERNAME = os.getenv("MAILTRAP_USERNAME", "")
+MAILTRAP_PASSWORD = os.getenv("MAILTRAP_PASSWORD", "")
+
+# Generic SMTP settings (fallback). If MAILTRAP_* exists, use it automatically.
+SMTP_HOST = MAILTRAP_HOST or os.getenv("SMTP_HOST", "localhost")
+SMTP_PORT = MAILTRAP_PORT if MAILTRAP_HOST else int(os.getenv("SMTP_PORT", "25"))
+SMTP_USERNAME = MAILTRAP_USERNAME or os.getenv("SMTP_USERNAME", "")
+SMTP_PASSWORD = MAILTRAP_PASSWORD or os.getenv("SMTP_PASSWORD", "")
+SMTP_USE_TLS=os.getenv("SMTP_USE_TLS","true").lower() == "true"
 SMTP_USE_SSL=os.getenv("SMTP_USE_SSL","false").lower() == "true"
 
 MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "25"))

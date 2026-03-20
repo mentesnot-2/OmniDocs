@@ -67,7 +67,7 @@ export default function DashboardPage() {
     try {
       const me = await getJson<{ id: number; email: string; is_admin: boolean }>("/auth/me");
       setUser(me);
-      const docsRes = await getJson<{ documents: { filename: string; uploaded_at: number }[] }>("/documents/");
+      const docsRes = await getJson<{ documents: { filename: string; uploaded_at: number }[] }>("/documents");
       setDocuments(docsRes.documents || []);
       await loadUsage();
     } catch {
@@ -119,7 +119,7 @@ export default function DashboardPage() {
       const res = await postFormData("/documents/upload", formData);
       setUploadSuccess(`"${res.file_name}" indexed successfully.`);
       setFile(null);
-      const docsRes = await getJson<{ documents: { filename: string; uploaded_at: number }[] }>("/documents/");
+      const docsRes = await getJson<{ documents: { filename: string; uploaded_at: number }[] }>("/documents");
       setDocuments(docsRes.documents || []);
       await loadUsage();
     } catch (err: unknown) {
