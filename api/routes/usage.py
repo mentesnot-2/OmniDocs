@@ -1,0 +1,61 @@
+"""Usage analytics routes."""
+
+from datetime import datetime
+
+from fastapi import APIRouter, Depends
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from api.database import get_db
+from api.dependencies import get_current_user
+from api.models import User, UsageEvent
+from api.storage import dir_size_bytes
+from config import MAX_USER_STORAGE_MB, UPLOAD_DIR
+
+router = APIRouter(prefix="/usage", tags=["usage"])
+
+
+@router.get("/me")
+def get_my_usage(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return current user's monthly query/upload counts and storage usage."""
+    now = datetime.utcnow()
+    month_start = datetime(now.year, now.month, 1)
+
+    query_count = (
+        db.query(func.count(UsageEvent.id))
+        .filter(
+            UsageEvent.user_id == current_user.id,
+            UsageEvent.event_type == "query",
+            UsageEvent.created_at >= month_start,
+        )
+        .scalar()
+    ) or 0
+
+    upload_count = (
+        db.query(func.count(UsageEvent.id))
+        .filter(
+            UsageEvent.user_id == current_user.id,
+            UsageEvent.event_type == "upload",
+            UsageEvent.created_at >= month_start,
+        )
+        .scalar()
+    ) or 0
+
+    uploads_dir = UPLOAD_DIR / str(current_user.id)
+    used_bytes = dir_size_bytes(uploads_dir)
+    limit_bytes = MAX_USER_STORAGE_MB * 1024 * 1024
+    used_percent = (used_bytes / limit_bytes * 100.0) if limit_bytes else 0.0
+
+    return {
+        "month": now.strftime("%Y-%m"),
+        "queries_this_month": int(query_count),
+        "uploads_this_month": int(upload_count),
+        "storage": {
+            "used_bytes": int(used_bytes),
+            "limit_bytes": int(limit_bytes),
+            "used_percent": round(used_percent, 2),
+        },
+    }

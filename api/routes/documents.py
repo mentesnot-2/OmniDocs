@@ -33,13 +33,22 @@ from sqlalchemy.orm import Session
 
 from api.database import get_db
 from api.dependencies import get_current_user
-from api.models import User
+from api.models import User, UsageEvent
 from ingestion import ingest_document
 from chunking import chunk_document
 from embeddings import EmbeddingGenerator
 from vectorstore import ChromaVectorStore
 
 router = APIRouter(prefix="/documents",tags=["documents"])
+
+def _track_usage_event(db: Session, user_id: int, event_type: str) -> None:
+    """Best-effort usage tracking; never blocks core request flow."""
+    try:
+        db.add(UsageEvent(user_id=user_id, event_type=event_type))
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.warning(f"Failed to record usage event '{event_type}' for user {user_id}: {exc}")
 
 
 @router.get("/")
@@ -186,6 +195,7 @@ async def upload(
         for c in chunks
     ]
     store.add_chunks(texts, embeddings, metadatas)
+    _track_usage_event(db, current_user.id, "upload")
 
    
 
@@ -225,6 +235,7 @@ def query(
         top_k=body.top_k or TOP_K,
         user_id=str(current_user.id),
     )
+    _track_usage_event(db, current_user.id, "query")
 
     if result["num_results"] == 0:
         return {

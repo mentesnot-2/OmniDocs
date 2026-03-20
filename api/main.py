@@ -5,7 +5,7 @@ Run: uvicorn api.main:app --reload
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import auth, documents, chat,admin
+from api.routes import auth, documents, chat, admin, usage
 from api.database import engine,Base
 from api.models import User
 from api.database import get_db
@@ -42,6 +42,7 @@ app.include_router(auth.router)
 app.include_router(documents.router)
 app.include_router(chat.router)
 app.include_router(admin.router)
+app.include_router(usage.router)
 
 @app.get("/")
 def root():
