@@ -44,7 +44,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")  # Optional, only if LLM_PROVID
 
 
 EMAIL_VERIFICATION_REQUIRED=os.getenv("EMAIL_VERIFICATION_REQUIRED","false").lower() == "true"
-EMAIL_SENDER=os.getenv("EMAIL_SENDER","no-reply@omnidocs.com")
+EMAIL_SENDER=os.getenv("EMAIL_SENDER","mentesnotsibatu63@gmail.com")
 EMAIL_VERIFICATION_BASE_URL=os.getenv("EMAIL_VERIFICATION_BASE_URL","http://localhost:3000")
 
 SMTP_HOST=os.getenv("SMTP_HOST","localhost")

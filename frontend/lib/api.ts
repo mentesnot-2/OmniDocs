@@ -1,5 +1,16 @@
 const API_BASE = typeof window !== "undefined" ? "/api" : (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000");
 
+function extractErrorMessage(data: any, status: number): string {
+    if (!data) return `Request failed with ${status}`;
+    if (typeof data.detail === "string") return data.detail;
+    if (Array.isArray(data.detail) && data.detail.length > 0) {
+        const first = data.detail[0];
+        if (typeof first?.msg === "string") return first.msg;
+    }
+    if (typeof data.message === "string") return data.message;
+    return `Request failed with ${status}`;
+}
+
 /** Call /auth/refresh to get new tokens. Returns true if refresh succeeded. */
 async function tryRefresh(): Promise<boolean> {
     if (typeof window === "undefined") return false;
@@ -17,7 +28,7 @@ async function tryRefresh(): Promise<boolean> {
 async function handleResponse<T>(response: Response, parseJson: () => Promise<T>): Promise<T> {
     if (response.ok) return parseJson();
     const data = await response.json().catch(() => ({}));
-    const err = new Error(data.detail || `Request failed with ${response.status}`);
+    const err = new Error(extractErrorMessage(data, response.status));
     (err as Error & { status?: number }).status = response.status;
     throw err;
 }
