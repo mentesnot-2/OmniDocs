@@ -13,6 +13,29 @@ function formatDate(timestamp: number) {
   return d.toLocaleDateString();
 }
 
+type UsageMetrics = {
+  month: string;
+  queries_this_month: number;
+  uploads_this_month: number;
+  storage: {
+    used_bytes: number;
+    limit_bytes: number;
+    used_percent: number;
+  };
+};
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let i = -1;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i += 1;
+  }
+  return `${value.toFixed(value >= 100 ? 0 : 1)} ${units[i]}`;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<{ id: number; email: string; is_admin: boolean } | null>(null);
@@ -23,18 +46,39 @@ export default function DashboardPage() {
   const [documents, setDocuments] = useState<{ filename: string; uploaded_at: number }[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [usage, setUsage] = useState<UsageMetrics | null>(null);
+  const [usageLoading, setUsageLoading] = useState(true);
+  const [usageError, setUsageError] = useState<string | null>(null);
+
+  async function loadUsage() {
+    setUsageLoading(true);
+    setUsageError(null);
+    try {
+      const usageRes = await getJson<UsageMetrics>("/usage/me");
+      setUsage(usageRes);
+    } catch (err: unknown) {
+      setUsageError(err instanceof Error ? err.message : "Failed to load usage metrics.");
+    } finally {
+      setUsageLoading(false);
+    }
+  }
+
+  async function loadDashboardData() {
+    try {
+      const me = await getJson<{ id: number; email: string; is_admin: boolean }>("/auth/me");
+      setUser(me);
+      const docsRes = await getJson<{ documents: { filename: string; uploaded_at: number }[] }>("/documents/");
+      setDocuments(docsRes.documents || []);
+      await loadUsage();
+    } catch {
+      setUser(null);
+      router.push("/login");
+    }
+  }
 
   useEffect(() => {
-    getJson<{ id: number; email: string; is_admin: boolean }>("/auth/me")
-      .then((me) => {
-        setUser(me);
-        return getJson<{ documents: { filename: string; uploaded_at: number }[] }>("/documents/");
-      })
-      .then((res) => setDocuments(res.documents || []))
-      .catch(() => {
-        setUser(null);
-        router.push("/login");
-      });
+    loadDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   async function handleDelete(filename: string) {
@@ -43,6 +87,7 @@ export default function DashboardPage() {
     try {
       await deleteRequest(`/documents/${encodeURIComponent(filename)}`);
       setDocuments((prev) => prev.filter((d) => d.filename !== filename));
+      await loadUsage();
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : "Failed to delete document");
     } finally {
@@ -74,9 +119,9 @@ export default function DashboardPage() {
       const res = await postFormData("/documents/upload", formData);
       setUploadSuccess(`"${res.file_name}" indexed successfully.`);
       setFile(null);
-      getJson<{ documents: { filename: string; uploaded_at: number }[] }>("/documents/").then(
-        (res) => setDocuments(res.documents || [])
-      );
+      const docsRes = await getJson<{ documents: { filename: string; uploaded_at: number }[] }>("/documents/");
+      setDocuments(docsRes.documents || []);
+      await loadUsage();
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -137,6 +182,76 @@ export default function DashboardPage() {
             Upload documents, then ask questions about them in natural language.
           </p>
         </div>
+
+        {/* Usage metrics */}
+        <section className="mb-10">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500">
+              Usage
+            </h2>
+            <div className="flex items-center gap-3">
+              {usage?.month && <span className="text-xs text-slate-600">{usage.month}</span>}
+              <button
+                type="button"
+                onClick={loadUsage}
+                className="rounded-md border border-white/10 px-2 py-1 text-xs text-slate-400 transition hover:bg-white/5 hover:text-white"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {usageError && (
+            <p className="mb-3 text-sm text-red-400">{usageError}</p>
+          )}
+
+          {usageLoading || !usage ? (
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="h-24 animate-pulse rounded-xl border border-white/5 bg-white/[0.03]" />
+              <div className="h-24 animate-pulse rounded-xl border border-white/5 bg-white/[0.03]" />
+              <div className="h-24 animate-pulse rounded-xl border border-white/5 bg-white/[0.03]" />
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                <p className="text-xs text-slate-500">Queries this month</p>
+                <p className="mt-1 text-2xl font-semibold text-white">{usage.queries_this_month}</p>
+              </div>
+
+              <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                <p className="text-xs text-slate-500">Uploads this month</p>
+                <p className="mt-1 text-2xl font-semibold text-white">{usage.uploads_this_month}</p>
+              </div>
+
+              <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-slate-500">Storage</p>
+                  {usage.storage.used_percent >= 80 && (
+                    <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-amber-300">
+                      Near limit
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-slate-300">
+                  {formatBytes(usage.storage.used_bytes)} / {formatBytes(usage.storage.limit_bytes)}
+                </p>
+                <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-800">
+                  <div
+                    className={`h-full rounded-full ${
+                      usage.storage.used_percent >= 90
+                        ? "bg-red-400"
+                        : usage.storage.used_percent >= 75
+                          ? "bg-amber-400"
+                          : "bg-emerald-400"
+                    }`}
+                    style={{ width: `${Math.min(100, usage.storage.used_percent)}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-slate-500">{usage.storage.used_percent.toFixed(1)}% used</p>
+              </div>
+            </div>
+          )}
+        </section>
 
         {/* Upload zone */}
         <section className="mb-16">
