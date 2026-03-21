@@ -116,6 +116,42 @@ Note: using `127.0.0.1` avoids IPv6 localhost proxy issues on some systems.
 
 ---
 
+## Docker (Recommended One-Command Run)
+
+### Prerequisites
+
+- Docker Desktop (or Docker Engine + Compose)
+
+### Build and Run
+
+```bash
+docker compose up --build
+```
+
+Open:
+- Frontend: http://localhost:3000
+- Backend: http://localhost:8000
+
+### Run in Detached Mode
+
+```bash
+docker compose up -d --build
+```
+
+### Stop Containers
+
+```bash
+docker compose down
+```
+
+### Persisted Data
+
+Docker volumes are configured for:
+- SQLite and uploads: `omnidocs_data`
+- Vector DB storage: `omnidocs_chroma`
+
+---
+
 ## Environment Configuration
 
 Create `.env` at project root.
