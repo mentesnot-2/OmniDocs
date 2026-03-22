@@ -30,6 +30,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
+    to_encode["type"] = "access"
     to_encode["exp"] = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -50,5 +51,12 @@ def decode_token(token: str) -> dict | None:
 def decode_refresh_token(token: str) -> dict | None:
     payload = decode_token(token)
     if payload is None or payload.get("type") != "refresh" or "sub" not in payload:
+        return None
+    return payload
+
+
+def decode_access_token(token: str) -> dict | None:
+    payload = decode_token(token)
+    if payload is None or payload.get("type") != "access" or "sub" not in payload:
         return None
     return payload

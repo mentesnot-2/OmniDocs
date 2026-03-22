@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from api.database import get_db
 from api.models import User
-from api.core.security import decode_token
+from api.core.security import decode_access_token
 
 AUTH_COOKIE = "omnidocs_token"
 http_bearer = HTTPBearer(auto_error=False)
@@ -27,14 +27,14 @@ def get_current_user(
     token: str | None = Depends(get_token),
     db: Session = Depends(get_db),
 ) -> User:
-    """Return the authenticated user from JWT token (cookie or Authorization header)."""
+    """Return authenticated user from a valid access token."""
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
         )
-    payload = decode_token(token)
-    if payload is None or "sub" not in payload:
+    payload = decode_access_token(token)
+    if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
