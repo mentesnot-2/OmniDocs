@@ -120,23 +120,40 @@ async def upload(
     current_user: User = Depends(get_current_user),
 ):
     """Upload document and index it for the current user."""
-
-    ext = Path(file.filename).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        logger.error(f"File {file.filename} has an invalid extension. Allowed extensions are {ALLOWED_EXTENSIONS}.")
+    original_filename = (file.filename or "").strip()
+    if not original_filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File {file.filename} has an invalid extension. Allowed extensions are {ALLOWED_EXTENSIONS}.",
+            detail="Filename is required.",
+        )
+    safe_filename = Path(original_filename).name
+    if safe_filename != original_filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid filename.",
+        )
+
+    ext = Path(safe_filename).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        logger.error(f"File {safe_filename} has an invalid extension. Allowed extensions are {ALLOWED_EXTENSIONS}.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File {safe_filename} has an invalid extension. Allowed extensions are {ALLOWED_EXTENSIONS}.",
         )
     # Save uploaded file to disk
-    uploads_dir = UPLOAD_DIR / str(current_user.id)
+    uploads_dir = (UPLOAD_DIR / str(current_user.id)).resolve()
     uploads_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = uploads_dir / file.filename
+    dest_path = (uploads_dir / safe_filename).resolve()
+    if dest_path.parent != uploads_dir:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid filename.",
+        )
     
     content = await file.read()
     size_mb = len(content) / (1024 * 1024)
     if size_mb > MAX_FILE_SIZE_MB:
-        logger.error(f"Document {file.filename} is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.")
+        logger.error(f"Document {safe_filename} is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Document is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.",
@@ -150,23 +167,23 @@ async def upload(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Storage quota exceeded.",
         )
-    logger.info(f"Document {file.filename} uploaded successfully. Size: {size_mb:.2f} MB.")
+    logger.info(f"Document {safe_filename} uploaded successfully. Size: {size_mb:.2f} MB.")
     with open(dest_path, "wb") as f:
         f.write(content)
     # Ingest, chunk, embed, and store
 
     try:
         parsed = ingest_document(dest_path)
-        logger.info(f"Document {file.filename} parsed successfully.")
+        logger.info(f"Document {safe_filename} parsed successfully.")
     except Exception as e:
-        logger.error(f"Failed to parse document {file.filename}: {str(e)}")
+        logger.error(f"Failed to parse document {safe_filename}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to parse document: {str(e)}",
         )
 
     if not parsed.content.strip():
-        logger.error(f"Document {file.filename} is empty or contains no text.")
+        logger.error(f"Document {safe_filename} is empty or contains no text.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Document is empty or contains no text.",
@@ -174,7 +191,7 @@ async def upload(
     
     chunks = chunk_document(parsed)
     if not chunks:
-        logger.error(f"No chunks produced from document {file.filename}.")
+        logger.error(f"No chunks produced from document {safe_filename}.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No chunks produced from document.",
@@ -185,7 +202,7 @@ async def upload(
 
     store = ChromaVectorStore()
     # Delete old chunks for re-upload (same filename)
-    store.delete_by_source(file.filename, str(current_user.id))
+    store.delete_by_source(safe_filename, str(current_user.id))
     metadatas = [
         {
             "source_file": c.source_file,
@@ -202,7 +219,7 @@ async def upload(
 
     return {
         "message": "Document uploaded and indexed successfully.",
-        "file_name": file.filename,
+        "file_name": safe_filename,
         "chunk_indexed": len(chunks),
     }
 
