@@ -1,5 +1,6 @@
 import smtplib
 from email.message import EmailMessage
+from api.utils.logging_config import logger
 from config.settings import (
     EMAIL_SENDER,
     SMTP_HOST,
@@ -9,6 +10,10 @@ from config.settings import (
     SMTP_USE_TLS,
     # SMTP_USE_SSL,
 )
+
+
+class EmailDeliveryError(Exception):
+    """Raised when an email could not be delivered."""
 
 
 def send_email(to:str,subject:str,body:str):
@@ -28,5 +33,6 @@ def send_email(to:str,subject:str,body:str):
                 server.login(SMTP_USERNAME,SMTP_PASSWORD)
             server.send_message(msg)
     except Exception as e:
-        print(f"[Email Error] Failed to send email to {to}: {e}")
+        logger.exception("Failed to send email to %s", to)
+        raise EmailDeliveryError("Failed to send verification email.") from e
 

@@ -27,7 +27,8 @@ from config.settings import (
     GOOGLE_CLIENT_SECRET,
     FRONTEND_BASE_URL,
 )
-from api.utils.email import send_email
+from api.utils.email import send_email, EmailDeliveryError
+from api.utils.logging_config import logger
 from api.rate_limiter import limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -107,11 +108,24 @@ def signup(request: Request, data: UserSignup, db: Session = Depends(get_db)):
     db.refresh(user)
     if EMAIL_VERIFICATION_REQUIRED:
         verify_link = f"{EMAIL_VERIFICATION_BASE_URL}/verify-email?token={user.verification_token}"
-        send_email(
-            to=user.email,
-            subject="Verify your OmniDocs account",
-            body=f"Click the link to verify your email:\n\n{verify_link}\n\nIf you did not sign up, ignore this email"
-        )
+        try:
+            send_email(
+                to=user.email,
+                subject="Verify your OmniDocs account",
+                body=f"Click the link to verify your email:\n\n{verify_link}\n\nIf you did not sign up, ignore this email"
+            )
+        except EmailDeliveryError:
+            # Avoid leaving users stuck in unverified state with no delivered email.
+            try:
+                db.delete(user)
+                db.commit()
+            except Exception as cleanup_exc:
+                db.rollback()
+                logger.exception("Failed to rollback user creation after email failure: %s", cleanup_exc)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Unable to send verification email right now. Please try again later.",
+            )
 
         return Response(
             content='{"detail":"Verification email sent. Please check your inbox."}',
