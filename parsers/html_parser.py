@@ -14,7 +14,7 @@ def parse_html(file_path:Path) -> ParsedDocument:
     if not file_path.exists():
         raise FileNotFoundError(f"HTML not found: {file_path}")
     
-    with open(file_path,'r',encoding="utf-8",errors="replae") as f:
+    with open(file_path,'r',encoding="utf-8",errors="replace") as f:
         soup = BeautifulSoup(f,features="html.parser")
     
     # Remove script/style
