@@ -74,6 +74,14 @@ GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")
 GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
 BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://127.0.0.1:8000")
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
+
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET=os.getenv("STRIPE_WEBHOOK_SECRET","")
+STRIPE_PRICE_PRO_MONTHLY=os.getenv("STRIPE_PRICE_PRO_MONTHLY","")
+BILLING_SUCCESS_URL = os.getenv("BILLING_SUCCESS_URL","http://localhost:3000/dashboard/billing?success=1")
+BILLING_CANCEL_URL = os.getenv("BILLING_CANCEL_URL","http://localhost:3000/dashboard/billing/canceled=1")
+
+
 def ensure_dirs():
     """Create data directories if they don't exist"""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
