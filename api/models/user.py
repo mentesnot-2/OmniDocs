@@ -27,6 +27,12 @@ class User(Base):
     is_admin = Column(Boolean, nullable=False,server_default="0")
     is_active = Column(Boolean, nullable=False,server_default="1")
 
+    # Billing / Subscription
+    plan_id = Column(String(50), nullable=False, server_default="free")
+    stripe_customer_id = Column(String(255),nullable=True,unique=True,index=True)
+    stripe_subscription_id = Column(String(255),nullable=True,unique=True,index=True)
+    billing_status = Column(String(50), nullable=True)
+
     @staticmethod
     def generate_verification_token():
         return secrets.token_urlsafe(32)
