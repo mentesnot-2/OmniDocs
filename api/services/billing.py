@@ -1,10 +1,14 @@
 import stripe
 from config.settings import STRIPE_SECRET_KEY, STRIPE_PRICE_PRO_MONTHLY, BILLING_SUCCESS_URL, BILLING_CANCEL_URL
+import logging
+from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 stripe.api_key = STRIPE_SECRET_KEY
 
-def create_checkout_session(customer_id:str, user_id:int) -> str:
+def create_checkout_session(customer_id:str, user_id:int) -> Optional[str]:
     try:
         session = stripe.checkout.Session.create(
             mode="subscription",
@@ -17,7 +21,7 @@ def create_checkout_session(customer_id:str, user_id:int) -> str:
 
         return session.url
     except Exception as e:
-        print(f"Error creating checkout session: {e}")
+        logger.error(f"Error creating checkout session: {e}")
         return None
 
 def create_portal_session(customer_id:str) -> str:
@@ -28,7 +32,7 @@ def create_portal_session(customer_id:str) -> str:
         )
         return session.url
     except Exception as e:
-        print(f"Error creating portal session: {e}")
+        logger.error(f"Error creating portal session: {e}")
         return None
 
 
