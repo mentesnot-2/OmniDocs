@@ -15,6 +15,9 @@ from config import (
 )
 from api.rate_limiter import limiter
 from api.storage import dir_size_bytes
+from api.services.usage_limits import enforce_upload_limit, enforce_storage_limit, enforce_query_limit
+
+
 
 
 class QueryRequest(BaseModel):
@@ -152,6 +155,8 @@ async def upload(
     
     content = await file.read()
     size_mb = len(content) / (1024 * 1024)
+    enforce_storage_limit(current_user, len(content))
+    enforce_upload_limit(db, current_user)
     if size_mb > MAX_FILE_SIZE_MB:
         logger.error(f"Document {safe_filename} is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.")
         raise HTTPException(
@@ -247,6 +252,7 @@ def query(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Question is too long. Maximum length is {MAX_QUESTION_LEN} characters.",
         )
+    enforce_query_limit(db, current_user)
     retriever = Retriever()
     result = retriever.retrieve_with_context(
         question,

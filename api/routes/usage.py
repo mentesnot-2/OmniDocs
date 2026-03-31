@@ -5,12 +5,16 @@ from datetime import datetime
 from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.functions import current_user
 
 from api.database import get_db
 from api.dependencies import get_current_user
 from api.models import User, UsageEvent
 from api.storage import dir_size_bytes
 from config import MAX_USER_STORAGE_MB, UPLOAD_DIR
+from config.plans import PLANS, DEFAULT_PLAN_ID
+
+plan = PLANS.get(current_user.plan_id or DEFAULT_PLAN_ID, PLANS[DEFAULT_PLAN_ID])
 
 router = APIRouter(prefix="/usage", tags=["usage"])
 
@@ -51,6 +55,15 @@ def get_my_usage(
 
     return {
         "month": now.strftime("%Y-%m"),
+        "plan" : {
+            "id": plan.plan_id,
+            "name": plan.name,
+            "limits":{
+                "monthly_queries": plan.monthly_queries,
+                "monthly_uploads": plan.monthly_uploads,
+                "storage_mb": plan.storage_mb,
+            }
+        },
         "queries_this_month": int(query_count),
         "uploads_this_month": int(upload_count),
         "storage": {
