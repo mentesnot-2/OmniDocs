@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getJson, postJson } from "@/lib/api";
 
 type Msg = { role: string; content: string };
@@ -20,6 +20,7 @@ const SUGGESTIONS = [
 ];
 
 export default function ChatPage() {
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +102,10 @@ export default function ChatPage() {
         .catch(() => setSessions([]));
     }
   }, [sessionId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messageHistory, pendingQuestion, loading, error]);
 
   async function handleSubmit(e: React.FormEvent, suggestion?: string) {
     e.preventDefault();
@@ -311,6 +316,7 @@ export default function ChatPage() {
                 {error}
               </div>
             )}
+            <div ref={messagesEndRef} />
           </div>
         </div>
 
