@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from api.models import UsageEvent, User
 from api.storage import dir_size_bytes
-from config import UPLOAD_DIR, MAX_FILE_SIZE
+from config import UPLOAD_DIR
 from config.plans import PLANS, DEFAULT_PLAN_ID
 
 
@@ -28,7 +28,7 @@ def enforce_query_limit(db: Session, user: User):
         .scalar() 
     ) or 0
 
-    if count >= plan.query_limit:
+    if count >= plan.monthly_queries:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Monthly query limit reached for {plan.name} plan."
