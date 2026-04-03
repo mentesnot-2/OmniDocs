@@ -11,11 +11,16 @@ from config import (
     UPLOAD_DIR,
     ALLOWED_EXTENSIONS,
     MAX_FILE_SIZE_MB,
-    MAX_USER_STORAGE_MB,
 )
 from api.rate_limiter import limiter
 from api.storage import dir_size_bytes
-from api.services.usage_limits import enforce_upload_limit, enforce_storage_limit, enforce_query_limit
+from api.services.usage_limits import (
+    enforce_upload_limit,
+    enforce_storage_limit,
+    enforce_query_limit,
+    get_plan_limits,
+    get_plan_storage_limit_bytes,
+)
 
 
 
@@ -163,15 +168,6 @@ async def upload(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Document is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.",
         )
-    used = dir_size_bytes(uploads_dir)
-    incoming = len(content)
-    quota = MAX_USER_STORAGE_MB * 1024 * 1024
-    if used + incoming > quota:
-        logger.error(f"User {current_user.id} exceeded storage quota ({MAX_USER_STORAGE_MB} MB).")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Storage quota exceeded.",
-        )
     logger.info(f"Document {safe_filename} uploaded successfully. Size: {size_mb:.2f} MB.")
     with open(dest_path, "wb") as f:
         f.write(content)
@@ -292,9 +288,12 @@ def get_storage(
     """Get the storage usage for the current user."""
     uploads_dir = UPLOAD_DIR / str(current_user.id)
     used = dir_size_bytes(uploads_dir)
-    limit = MAX_USER_STORAGE_MB * 1024 * 1024
+    plan = get_plan_limits(current_user)
+    limit = get_plan_storage_limit_bytes(current_user)
     return {
         "used_bytes": used,
         "limit_bytes": limit,
-        "used_percent": used / limit,
+        "used_percent": round((used / limit * 100.0) if limit else 0.0, 2),
+        "plan_id": plan.plan_id,
+        "plan_name": plan.name,
     }

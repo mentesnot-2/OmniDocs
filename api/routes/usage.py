@@ -11,8 +11,8 @@ from api.database import get_db
 from api.dependencies import get_current_user
 from api.models import User, UsageEvent
 from api.storage import dir_size_bytes
-from config import MAX_USER_STORAGE_MB, UPLOAD_DIR
-from config.plans import PLANS, DEFAULT_PLAN_ID
+from config import UPLOAD_DIR
+from api.services.usage_limits import get_plan_limits, get_plan_storage_limit_bytes
 
 router = APIRouter(prefix="/usage", tags=["usage"])
 
@@ -23,7 +23,7 @@ def get_my_usage(
     current_user: User = Depends(get_current_user),
 ):
     """Return current user's monthly query/upload counts and storage usage."""
-    plan = PLANS.get(current_user.plan_id or DEFAULT_PLAN_ID, PLANS[DEFAULT_PLAN_ID])
+    plan = get_plan_limits(current_user)
     now = datetime.utcnow()
     month_start = datetime(now.year, now.month, 1)
 
@@ -49,7 +49,7 @@ def get_my_usage(
 
     uploads_dir = UPLOAD_DIR / str(current_user.id)
     used_bytes = dir_size_bytes(uploads_dir)
-    limit_bytes = MAX_USER_STORAGE_MB * 1024 * 1024
+    limit_bytes = get_plan_storage_limit_bytes(current_user)
     used_percent = (used_bytes / limit_bytes * 100.0) if limit_bytes else 0.0
 
     return {

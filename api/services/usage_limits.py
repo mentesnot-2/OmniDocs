@@ -14,6 +14,16 @@ def _plan(user:User):
     return PLANS.get(user.plan_id or DEFAULT_PLAN_ID, PLANS[DEFAULT_PLAN_ID])
 
 
+def get_plan_limits(user: User):
+    """Return resolved plan limits for a user."""
+    return _plan(user)
+
+
+def get_plan_storage_limit_bytes(user: User) -> int:
+    """Return storage limit in bytes for the user's active plan."""
+    return _plan(user).storage_mb * 1024 * 1024
+
+
 
 def enforce_query_limit(db: Session, user: User):
     plan = _plan(user)
@@ -58,7 +68,7 @@ def enforce_upload_limit(db: Session, user: User):
 def enforce_storage_limit(user: User,incoming_bytes:int = 0):
     plan = _plan(user)
     used = dir_size_bytes(UPLOAD_DIR / str(user.id))
-    limit_bytes = plan.storage_mb * 1024 * 1024
+    limit_bytes = get_plan_storage_limit_bytes(user)
 
     if used + incoming_bytes > limit_bytes:
         raise HTTPException(
