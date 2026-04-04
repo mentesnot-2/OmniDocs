@@ -1,19 +1,22 @@
 """Chat session and message routes."""
 
 from typing import List
-from fastapi import APIRouter,Depends,HTTPException,status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from api.database import get_db
 from api.dependencies import get_current_user
-from api.models import User,ChatSession,ChatMessage
-from api.schemas.chat import MessageOut,SessionOut,AddMessageRequest
+from api.models import User, ChatSession, ChatMessage
+from api.schemas.chat import MessageOut, SessionOut, AddMessageRequest
+from api.rate_limiter import limiter
 
-router = APIRouter(prefix="/chat",tags=["chat"])
+router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("/sessions",response_model=SessionOut)
+@limiter.limit("30/minute")
 def create_session(
+    request: Request,
     db:Session = Depends(get_db),
     current_user:User = Depends(get_current_user),
 ):
@@ -31,7 +34,9 @@ def create_session(
 
 
 @router.get("/sessions/{session_id}", response_model=SessionOut)
+@limiter.limit("60/minute")
 def get_session(
+    request: Request,
     session_id:int,
     db:Session = Depends(get_db),
     current_user:User = Depends(get_current_user),
@@ -50,7 +55,9 @@ def get_session(
     return session
 
 @router.get("/sessions", response_model=List[SessionOut])
+@limiter.limit("60/minute")
 def list_sessions(
+    request: Request,
     db:Session = Depends(get_db),
     current_user:User = Depends(get_current_user),
 ):
@@ -66,7 +73,9 @@ def list_sessions(
     return sessions
 
 @router.post("/sessions/{session_id}/messages")
+@limiter.limit("60/minute")
 def add_message(
+    request: Request,
     session_id:int,
     body:AddMessageRequest,
     db:Session = Depends(get_db),

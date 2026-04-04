@@ -9,6 +9,7 @@ from api.models import User
 from api.services.billing import create_checkout_session, create_portal_session
 from config.settings import STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
 from config.plans import PLANS, DEFAULT_PLAN_ID
+from api.rate_limiter import limiter
 
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -26,7 +27,8 @@ def get_or_create_customer(user:User) -> str:
     return customer.id
 
 @router.post("/checkout")
-def start_checkout(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+@limiter.limit("10/minute")
+def start_checkout(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     try:
         customer_id = get_or_create_customer(current_user)
         if not current_user.stripe_customer_id:
@@ -41,7 +43,8 @@ def start_checkout(db: Session = Depends(get_db), current_user: User = Depends(g
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/portal")
-def open_portal(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+@limiter.limit("10/minute")
+def open_portal(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     try:
         if not current_user.stripe_customer_id:
             raise HTTPException(status_code=400, detail="No Stripe customer found")
@@ -51,6 +54,7 @@ def open_portal(db: Session = Depends(get_db), current_user: User = Depends(get_
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/webhook")
+@limiter.limit("120/minute")
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)) -> dict:
     try:
         payload = await request.body()

@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from api.database import get_db
 from api.dependencies import require_admin
 from api.models import SupportTicket, User
+from api.rate_limiter import limiter
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -16,7 +17,9 @@ class TicketStatusUpdateRequest(BaseModel):
 
 
 @router.get("/users")
+@limiter.limit("30/minute")
 def list_users(
+    request: Request,
     db: Session = Depends(get_db),
     _admin: User = Depends(require_admin),
     ):
@@ -37,7 +40,9 @@ def list_users(
 
 
 @router.patch("/users/{user_id}/active")
+@limiter.limit("20/minute")
 def set_user_active(
+    request: Request,
     user_id: int,
     body: ActiveUpdateRequest,
     db: Session = Depends(get_db),
@@ -66,7 +71,9 @@ def set_user_active(
     }
 
 @router.get("/support/tickets")
+@limiter.limit("30/minute")
 def list_support_tickets(
+    request: Request,
     db:Session = Depends(get_db),
     _admin: User = Depends(require_admin),
 
@@ -87,7 +94,9 @@ def list_support_tickets(
     }
 
 @router.patch("/support/tickets/{ticket_id}")
+@limiter.limit("20/minute")
 def update_support_ticket(
+    request: Request,
     ticket_id: int,
     body: TicketStatusUpdateRequest,
     db: Session = Depends(get_db),

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 # from sqlalchemy.sql.functions import current_user
@@ -13,12 +13,15 @@ from api.models import User, UsageEvent
 from api.storage import dir_size_bytes
 from config import UPLOAD_DIR
 from api.services.usage_limits import get_plan_limits, get_plan_storage_limit_bytes
+from api.rate_limiter import limiter
 
 router = APIRouter(prefix="/usage", tags=["usage"])
 
 
 @router.get("/me")
+@limiter.limit("60/minute")
 def get_my_usage(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
