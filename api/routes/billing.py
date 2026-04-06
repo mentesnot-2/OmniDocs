@@ -26,6 +26,12 @@ def get_or_create_customer(user:User) -> str:
     )
     return customer.id
 
+
+def get_user_by_customer_id(db: Session, customer_id: str | None) -> User | None:
+    if not customer_id:
+        return None
+    return db.query(User).filter(User.stripe_customer_id == customer_id).first()
+
 @router.post("/checkout")
 @limiter.limit("10/minute")
 def start_checkout(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
@@ -70,24 +76,37 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)) -> dic
         event_type = event["type"]
         obj = event["data"]["object"]
 
-        if event_type in ("checkout.session.completed", "customer.subscription.updated","customer.subscription.created"):
+        if event_type == "checkout.session.completed":
             customer_id = obj.get("customer")
-            subscription_id = obj.get("subscription") or obj.get("id")
-            status = obj.get("status","active")
-            user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
-
-            if user:
-                user.plan_id = "pro"
-                user.billing_status = status
+            subscription_id = obj.get("subscription")
+            user = get_user_by_customer_id(db, customer_id)
+            if user and subscription_id:
                 user.stripe_subscription_id = subscription_id
                 db.commit()
-        if event_type in ("customer.subscription.deleted"):
+
+        elif event_type in ("customer.subscription.created", "customer.subscription.updated"):
             customer_id = obj.get("customer")
-            user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+            subscription_id = obj.get("id")
+            subscription_status = obj.get("status", "inactive")
+            user = get_user_by_customer_id(db, customer_id)
+            if user:
+                user.stripe_subscription_id = subscription_id
+                user.billing_status = subscription_status
+                if subscription_status in ("active", "trialing", "past_due"):
+                    user.plan_id = "pro"
+                else:
+                    user.plan_id = DEFAULT_PLAN_ID
+                db.commit()
+
+        elif event_type == "customer.subscription.deleted":
+            customer_id = obj.get("customer")
+            subscription_id = obj.get("id")
+            user = get_user_by_customer_id(db, customer_id)
             if user:
                 user.plan_id = DEFAULT_PLAN_ID
                 user.billing_status = "canceled"
-                user.stripe_subscription_id = None
+                if user.stripe_subscription_id == subscription_id:
+                    user.stripe_subscription_id = None
                 db.commit()
         return {"ok":True}
     except Exception as e:
