@@ -26,6 +26,7 @@ from config.settings import (
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET,
     FRONTEND_BASE_URL,
+    COOKIE_SECURE,
 )
 from api.utils.email import send_email, EmailDeliveryError
 from api.utils.logging_config import logger
@@ -45,7 +46,7 @@ def _set_auth_cookies(resp: Response, access_token: str, refresh_token: str) -> 
         key=AUTH_COOKIE,
         value=access_token,
         httponly=True,
-        secure=False,
+        secure=COOKIE_SECURE,
         samesite="lax",
         max_age=ACCESS_COOKIE_MAX_AGE,
         path="/",
@@ -54,7 +55,7 @@ def _set_auth_cookies(resp: Response, access_token: str, refresh_token: str) -> 
         key=REFRESH_COOKIE,
         value=refresh_token,
         httponly=True,
-        secure=False,
+        secure=COOKIE_SECURE,
         samesite="lax",
         max_age=REFRESH_COOKIE_MAX_AGE,
         path="/",
@@ -157,7 +158,7 @@ def oauth_google_start(request: Request):
         key=OAUTH_STATE_COOKIE,
         value=state,
         httponly=True,
-        secure=False,
+        secure=COOKIE_SECURE,
         samesite="lax",
         max_age=600,
         path="/",

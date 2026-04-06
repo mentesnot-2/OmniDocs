@@ -89,6 +89,13 @@ BILLING_SUCCESS_URL = os.getenv("BILLING_SUCCESS_URL","http://localhost:3000/das
 BILLING_CANCEL_URL = os.getenv("BILLING_CANCEL_URL","http://localhost:3000/dashboard/billing/canceled=1")
 
 
+APP_ENV = os.getenv("APP_ENV", "development").lower()
+COOKIE_SECURE = os.getenv(
+    "COOKIE_SECURE",
+    "true" if APP_ENV == "production" else "false"
+).lower() == "true"
+
+
 def ensure_dirs():
     """Create data directories if they don't exist"""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
