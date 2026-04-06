@@ -1,12 +1,12 @@
 """Password hashing and JWT handling."""
 
-import os
 import bcrypt
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
+from config.settings import JWT_SECRET_KEY, JWT_ALGORITHM
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret-change-in-production")
-ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+SECRET_KEY = JWT_SECRET_KEY
+ALGORITHM = JWT_ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = 15  # short-lived; refresh before expiry
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 

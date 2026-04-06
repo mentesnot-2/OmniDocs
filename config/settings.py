@@ -42,6 +42,13 @@ LLM_MODEL = os.getenv("LLM_MODEL", "gemini-flash-latest")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")  # gemini | openai
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")  # Optional, only if LLM_PROVIDER=openai
 
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+if not JWT_SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY is required and must be set in the environment.")
+if len(JWT_SECRET_KEY) < 32:
+    raise RuntimeError("JWT_SECRET_KEY must be at least 32 characters long.")
+
 
 EMAIL_VERIFICATION_REQUIRED=os.getenv("EMAIL_VERIFICATION_REQUIRED","false").lower() == "true"
 EMAIL_SENDER=os.getenv("EMAIL_SENDER","mentesnotsibatu63@gmail.com")
