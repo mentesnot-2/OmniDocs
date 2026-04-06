@@ -11,7 +11,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             fetch(`${API_BASE}/auth/refresh`, { method: "POST", credentials: "include" }).catch(() => {});
         };
         const id = setInterval(refresh, REFRESH_INTERVAL_MS);
-        refresh(); // run once on mount
+        // refresh(); // run once on mount
         return () => clearInterval(id);
     }, []);
     return <div>{children}</div>;

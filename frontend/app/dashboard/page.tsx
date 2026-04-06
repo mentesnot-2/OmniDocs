@@ -70,7 +70,11 @@ export default function DashboardPage() {
       const docsRes = await getJson<{ documents: { filename: string; uploaded_at: number }[] }>("/documents");
       setDocuments(docsRes.documents || []);
       await loadUsage();
-    } catch {
+    } catch(err:any) {
+      if (err?.status === 401) {
+        await cleanupInvalidSession();
+        return;
+      }
       setUser(null);
       router.push("/login");
     }
@@ -94,14 +98,18 @@ export default function DashboardPage() {
       setDeleting(null);
     }
   }
-
-  async function handleLogout() {
+  async function cleanupInvalidSession() {
     try {
       await postJson("/auth/logout", {});
     } catch {
       // ignore
     }
+    setUser(null);
     router.push("/login");
+  }
+
+  async function handleLogout() {
+    await cleanupInvalidSession();
   }
 
   async function handleUpload(e: React.FormEvent) {
