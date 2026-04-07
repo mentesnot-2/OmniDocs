@@ -15,6 +15,22 @@ from slowapi.errors import RateLimitExceeded
 from api.rate_limiter import limiter
 from config import ensure_dirs
 
+from api.services.runtime_services import  (
+    get_embedding_generator, 
+    get_retriever, 
+    get_answer_generator,
+)
+get_embedding_generator()
+get_retriever()
+get_answer_generator()
+
+
+from api.services.vector_store_services import (
+    get_vector_store,
+    get_chroma_vector_store,
+)
+
+
 logger.info("Starting OmniDocs API")
 
 #Create tables on startup

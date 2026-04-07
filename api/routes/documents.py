@@ -46,7 +46,7 @@ from ingestion import ingest_document
 from chunking import chunk_document
 from embeddings import EmbeddingGenerator
 from vectorstore import ChromaVectorStore
-
+from api.services.runtime_services import get_retriever
 router = APIRouter(prefix="/documents",tags=["documents"])
 
 def _track_usage_event(db: Session, user_id: int, event_type: str) -> None:
@@ -249,7 +249,7 @@ def query(
             detail=f"Question is too long. Maximum length is {MAX_QUESTION_LEN} characters.",
         )
     enforce_query_limit(db, current_user)
-    retriever = Retriever()
+    retriever = get_retriever()
     result = retriever.retrieve_with_context(
         question,
         top_k=body.top_k or TOP_K,
@@ -263,7 +263,7 @@ def query(
             "sources": [],
         }
 
-    gen = AnswerGenerator()
+    gen = get_answer_generator()
     source_files = list({r.source_file for r in result["chunks"]})
     response = gen.generate(
         query=result["query"],

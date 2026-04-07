@@ -22,17 +22,18 @@ class Retriever:
     """High level retriever interface"""
     def __init__(
         self,
-        vector_store: ChromaVectorStore = None,
-        embedding_generator: EmbeddingGenerator = None,
+        vector_store: ChromaVectorStore | None = None,
+        embedder: EmbeddingGenerator | None = None,
     ):
-        """"
+        """
         Initialize retriever.
+
         Args:
-            vector_series: Vector store instance (creates new if none)
-            embedding_generator: Embedding generator instance(creates new if none)
+            vector_store: Vector store instance (creates new if none).
+            embedder: Embedding generator instance (creates new if none).
         """
         self.vector_store = vector_store or ChromaVectorStore()
-        self.embedding_generator = embedding_generator or EmbeddingGenerator()
+        self.embedding_generator = embedder or EmbeddingGenerator()
 
     def retrieve(
         self,

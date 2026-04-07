@@ -12,7 +12,7 @@ def get_embedding_generator() -> EmbeddingGenerator:
 
 @lru_cache(maxsize=1)
 def get_retriever() -> Retriever:
-    return Retriever()
+    return Retriever(embedder=get_embedding_generator())
 
 @lru_cache(maxsize=1)
 def get_answer_generator() -> AnswerGenerator:
