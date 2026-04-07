@@ -95,6 +95,13 @@ COOKIE_SECURE = os.getenv(
     "true" if APP_ENV == "production" else "false"
 ).lower() == "true"
 
+STORAGE_BACKEND=os.getenv("STORAGE_BACKEND","local")
+S3_BUCKET_NAME=os.getenv("S3_BUCKET_NAME","")
+S3_REGION=os.getenv("S3_REGION","")
+S3_ACCESS_KEY_ID=os.getenv("S3_ACCESS_KEY_ID","")
+S3_SECRET_ACCESS_KEY=os.getenv("S3_SECRET_ACCESS_KEY","")
+S3_ENDPOINT_URL=os.getenv("S3_ENDPOINT_URL","")
+S3_KEY_PREFIX=os.getenv("S3_KEY_PREFIX","uploads")
 
 def ensure_dirs():
     """Create data directories if they don't exist"""
