@@ -185,50 +185,51 @@ async def upload(
 
     # Ingest, chunk, embed, and store
     try:
-        parsed = ingest_document(ingest_path)
-        logger.info(f"Document {safe_filename} parsed successfully.")
-    except Exception as e:
-        logger.error(f"Failed to parse document {safe_filename}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to parse document: {str(e)}",
-        )
+        try:
+            parsed = ingest_document(ingest_path)
+            logger.info(f"Document {safe_filename} parsed successfully.")
+        except Exception as e:
+            logger.error(f"Failed to parse document {safe_filename}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to parse document: {str(e)}",
+            )
+
+        if not parsed.content.strip():
+            logger.error(f"Document {safe_filename} is empty or contains no text.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Document is empty or contains no text.",
+            )
+        
+        chunks = chunk_document(parsed)
+        if not chunks:
+            logger.error(f"No chunks produced from document {safe_filename}.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No chunks produced from document.",
+            )
+        texts = [c.text for c in chunks]
+        gen = EmbeddingGenerator()
+        embeddings = gen.embed_batch(texts)
+
+        store = ChromaVectorStore()
+        # Delete old chunks for re-upload (same filename)
+        store.delete_by_source(safe_filename, str(current_user.id))
+        metadatas = [
+            {
+                "source_file": c.source_file,
+                "chunk_index": c.chunk_index,
+                "user_id": str(current_user.id),
+                **{k: str(v) for k,v in c.metadata.items()}
+            }
+            for c in chunks
+        ]
+        store.add_chunks(texts, embeddings, metadatas)
+        _track_usage_event(db, current_user.id, "upload")
     finally:
         if temp_file_used and ingest_path.exists():
             ingest_path.unlink(missing_ok=True)
-
-    if not parsed.content.strip():
-        logger.error(f"Document {safe_filename} is empty or contains no text.")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Document is empty or contains no text.",
-        )
-    
-    chunks = chunk_document(parsed)
-    if not chunks:
-        logger.error(f"No chunks produced from document {safe_filename}.")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No chunks produced from document.",
-        )
-    texts = [c.text for c in chunks]
-    gen = EmbeddingGenerator()
-    embeddings = gen.embed_batch(texts)
-
-    store = ChromaVectorStore()
-    # Delete old chunks for re-upload (same filename)
-    store.delete_by_source(safe_filename, str(current_user.id))
-    metadatas = [
-        {
-            "source_file": c.source_file,
-            "chunk_index": c.chunk_index,
-            "user_id": str(current_user.id),
-            **{k: str(v) for k,v in c.metadata.items()}
-        }
-        for c in chunks
-    ]
-    store.add_chunks(texts, embeddings, metadatas)
-    _track_usage_event(db, current_user.id, "upload")
 
    
 

@@ -39,7 +39,7 @@ class StorageBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_local_path(self, user_id:int) -> Path | None:
+    def get_local_path(self, user_id:int, filename:str) -> Path | None:
         """
         Return a local file path if available.
         Local backend can return a real path.
@@ -57,8 +57,8 @@ class LocalStorageBackend(StorageBackend):
     def _user_dir(self, user_id:int) -> Path:
         return UPLOAD_DIR / str(user_id)
 
-        def _file_path(self,user_id:int, filename:str) -> Path:
-            return self._user_dir(user_id) / filename
+    def _file_path(self, user_id:int, filename:str) -> Path:
+        return self._user_dir(user_id) / filename
 
     def save_file(self, user_id:int, filename:str, content:bytes) -> str:
         user_dir = self._user_dir(user_id)
