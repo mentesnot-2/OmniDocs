@@ -21,7 +21,7 @@ from api.services.usage_limits import (
     get_plan_limits,
     get_plan_storage_limit_bytes,
 )
-
+from api.services.storage_backend import get_storage_backend
 
 
 
@@ -66,20 +66,22 @@ def get_documents(
     current_user:User = Depends(get_current_user),
 ):
     """List all documents uploaded by by the current user."""
-    upload_dir = UPLOAD_DIR / str(current_user.id)
-    if not upload_dir.exists():
-        return {"documents":[]}
-    files = []
-    for f in upload_dir.iterdir():
-        if f.is_file():
-            files.append({
-                "filename":f.name,
-                "uploaded_at":f.stat().st_mtime, # unix timestamp
-            })
+    # upload_dir = UPLOAD_DIR / str(current_user.id)
+    # if not upload_dir.exists():
+    #     return {"documents":[]}
+    # files = []
+    # for f in upload_dir.iterdir():
+    #     if f.is_file():
+    #         files.append({
+    #             "filename":f.name,
+    #             "uploaded_at":f.stat().st_mtime, # unix timestamp
+    #         })
 
-            # Sort by uploaded_at descending (newest first)
-    files.sort(key=lambda x : x["uploaded_at"], reverse=True)
-    return {"documents":files}
+    #         # Sort by uploaded_at descending (newest first)
+    # files.sort(key=lambda x : x["uploaded_at"], reverse=True)
+    # return {"documents":files}
+    storage = get_storage_backend()
+    return {"documents":storage.list_files(current_user.id)}
 @router.delete("/{filename}")
 def delete_document(
     filename:str,
@@ -89,35 +91,44 @@ def delete_document(
 ):
     """Delete a document and its chunks from the vector store."""
     import urllib.parse
-
-    # Decode filename in case it has special characters.
     filename = urllib.parse.unquote(filename)
 
-
-    # Security: ensure path stays within user's folder
-    uploads_dir = (UPLOAD_DIR / str(current_user.id)).resolve()
-    file_path = (uploads_dir / filename).resolve()
-
-    if file_path.parent != uploads_dir:
+    safe_filename = Path(filename).name
+    if safe_filename != filename:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid filename.",
-
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid filename: {filename}",
         )
-    if not file_path.exists():
+    # # Security: ensure path stays within user's folder
+    # uploads_dir = (UPLOAD_DIR / str(current_user.id)).resolve()
+    # file_path = (uploads_dir / filename).resolve()
+
+    # if file_path.parent != uploads_dir:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail="Invalid filename.",
+
+    #     )
+    # if not file_path.exists():
+    #     raise HTTPException(
+    #         status_code=status.HTTP_404_NOT_FOUND,
+    #         detail="File not found.",
+    #     )
+    storage = get_storage_backend()
+    if not storage.file_exists(current_user.id, safe_filename):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found.",
+            detail=f"File {filename} not found.",
         )
     # Delete from vectore store
     store = ChromaVectorStore()
-    store.delete_by_source(filename, str(current_user.id))
-    # Delete file from disk
-    file_path.unlink()
+    store.delete_by_source(safe_filename, str(current_user.id))
+
+    storage.delete_file(current_user.id, safe_filename)
 
     return {
         "message": "Document deleted successfully.",
-        "filename": filename,
+        "filename": safe_filename,
     }
 @router.post("/upload")
 @limiter.limit("10/minute")

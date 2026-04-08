@@ -47,6 +47,10 @@ class StorageBackend(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def file_exists(self, user_id:int, filename:str) -> bool:
+        raise NotImplementedError
+
 
 class LocalStorageBackend(StorageBackend):
 
@@ -88,6 +92,10 @@ class LocalStorageBackend(StorageBackend):
     
     def get_local_path(self, user_id:int,filename:str) -> Path | None:
         return self._file_path(user_id, filename)
+
+
+    def file_exists(self, user_id:int, filename:str) -> bool:
+        return self._file_path(user_id, filename).exists()
 
 class S3StorageBackend(StorageBackend):
     def __init__(self):
@@ -144,6 +152,14 @@ class S3StorageBackend(StorageBackend):
 
     def get_local_path(self, user_id:int, filename:str) -> Path | None:
         return None
+    
+    def file_exists(self, user_id:int, filename:str) -> bool:
+        key = self._key(user_id, filename)
+        try:
+            self.client.head_object(Bucket=self.bucket, Key=key)
+            return True
+        except Exception:
+            return False
 
 def get_storage_backend() -> StorageBackend:
     if STORAGE_BACKEND == "local":
