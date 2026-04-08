@@ -22,6 +22,7 @@ from api.services.usage_limits import (
     get_plan_storage_limit_bytes,
 )
 from api.services.storage_backend import get_storage_backend
+from api.services.ingestion_file import write_temp_file
 
 
 
@@ -159,16 +160,7 @@ async def upload(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"File {safe_filename} has an invalid extension. Allowed extensions are {ALLOWED_EXTENSIONS}.",
         )
-    # Save uploaded file to disk
-    uploads_dir = (UPLOAD_DIR / str(current_user.id)).resolve()
-    uploads_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = (uploads_dir / safe_filename).resolve()
-    if dest_path.parent != uploads_dir:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid filename.",
-        )
-    
+
     content = await file.read()
     size_mb = len(content) / (1024 * 1024)
     enforce_storage_limit(current_user, len(content))
@@ -180,12 +172,20 @@ async def upload(
             detail=f"Document is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.",
         )
     logger.info(f"Document {safe_filename} uploaded successfully. Size: {size_mb:.2f} MB.")
-    with open(dest_path, "wb") as f:
-        f.write(content)
-    # Ingest, chunk, embed, and store
+    storage = get_storage_backend()
+    storage.save_file(current_user.id, safe_filename, content)
 
+    local_path = storage.get_local_path(current_user.id, safe_filename)
+    temp_file_used = False
+    if local_path is not None:
+        ingest_path = local_path
+    else:
+        ingest_path = write_temp_file(safe_filename, content)
+        temp_file_used = True
+
+    # Ingest, chunk, embed, and store
     try:
-        parsed = ingest_document(dest_path)
+        parsed = ingest_document(ingest_path)
         logger.info(f"Document {safe_filename} parsed successfully.")
     except Exception as e:
         logger.error(f"Failed to parse document {safe_filename}: {str(e)}")
@@ -193,6 +193,9 @@ async def upload(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to parse document: {str(e)}",
         )
+    finally:
+        if temp_file_used and ingest_path.exists():
+            ingest_path.unlink(missing_ok=True)
 
     if not parsed.content.strip():
         logger.error(f"Document {safe_filename} is empty or contains no text.")
