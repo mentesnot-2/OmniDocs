@@ -301,14 +301,14 @@ def get_storage(
     current_user: User = Depends(get_current_user),
 ):
     """Get the storage usage for the current user."""
-    uploads_dir = UPLOAD_DIR / str(current_user.id)
-    used = dir_size_bytes(uploads_dir)
+    storage = get_storage_backend()
+    used_bytes = storage.get_usage_bytes(current_user.id)
     plan = get_plan_limits(current_user)
     limit = get_plan_storage_limit_bytes(current_user)
     return {
-        "used_bytes": used,
+        "used_bytes": used_bytes,
         "limit_bytes": limit,
-        "used_percent": round((used / limit * 100.0) if limit else 0.0, 2),
+        "used_percent": round((used_bytes / limit_bytes * 100.0) if limit_bytes else 0.0, 2),
         "plan_id": plan.plan_id,
         "plan_name": plan.name,
     }

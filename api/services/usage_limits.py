@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 
 from api.models import UsageEvent, User
-from api.storage import dir_size_bytes
+from api.services.storage_backend import get_storage_backend
 from config import UPLOAD_DIR
 from config.plans import PLANS, DEFAULT_PLAN_ID
 
@@ -67,7 +67,8 @@ def enforce_upload_limit(db: Session, user: User):
 
 def enforce_storage_limit(user: User,incoming_bytes:int = 0):
     plan = _plan(user)
-    used = dir_size_bytes(UPLOAD_DIR / str(user.id))
+    storage = get_storage_backend()
+    used = storage.get_usage_bytes(user.id)
     limit_bytes = get_plan_storage_limit_bytes(user)
 
     if used + incoming_bytes > limit_bytes:

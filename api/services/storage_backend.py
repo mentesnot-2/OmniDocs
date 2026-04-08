@@ -51,6 +51,10 @@ class StorageBackend(ABC):
     def file_exists(self, user_id:int, filename:str) -> bool:
         raise NotImplementedError
 
+    @abstractmethod
+    def get_usage_bytes(self, user_id:int) -> int:
+        raise NotImplementedError
+
 
 class LocalStorageBackend(StorageBackend):
 
@@ -96,6 +100,17 @@ class LocalStorageBackend(StorageBackend):
 
     def file_exists(self, user_id:int, filename:str) -> bool:
         return self._file_path(user_id, filename).exists()
+
+    def get_usage_bytes(self, user_id:int) -> int:
+        user_dir = self._user_dir(user_id)
+        if not user_dir.exists():
+            return 0
+
+        total= 0
+        for path in user_dir.rglob("*"):
+            if path.is_file():
+                total += path.stat().st_size
+        return total
 
 class S3StorageBackend(StorageBackend):
     def __init__(self):
@@ -160,7 +175,31 @@ class S3StorageBackend(StorageBackend):
             return True
         except Exception:
             return False
+    def get_usage_bytes(self, user_id:int) -> int:
+        prefix = f"{S3_KEY_PREFIX}/{user_id}/"
+        total = 0
+        continuation_token = None
 
+        while True:
+            params = {
+                "Bucket": self.bucket,
+                "Prefix":prefix,
+            }
+            if continuation_token:
+                params["ContinuationToken"] = continuation_token
+            
+            response = self.client.list_objects_v2(**params)
+
+            for obj in response.get("Contents", []):
+                key = obj["Key"]
+                if not key.endswith("/"):
+                    total += int(obj.get("Size", 0))
+
+            if not response.get("IsTruncated"):
+                break
+            continuation_token = response.get("NextContinuationToken")
+        return total
+ 
 def get_storage_backend() -> StorageBackend:
     if STORAGE_BACKEND == "local":
         return LocalStorageBackend()

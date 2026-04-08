@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from api.database import get_db
 from api.dependencies import get_current_user
 from api.models import User, UsageEvent
-from api.storage import dir_size_bytes
+from api.services.storage_backend import get_storage_backend
 from config import UPLOAD_DIR
 from api.services.usage_limits import get_plan_limits, get_plan_storage_limit_bytes
 from api.rate_limiter import limiter
@@ -50,8 +50,8 @@ def get_my_usage(
         .scalar()
     ) or 0
 
-    uploads_dir = UPLOAD_DIR / str(current_user.id)
-    used_bytes = dir_size_bytes(uploads_dir)
+    storage = get_storage_backend()
+    used_bytes = storage.get_usage_bytes(current_user.id)
     limit_bytes = get_plan_storage_limit_bytes(current_user)
     used_percent = (used_bytes / limit_bytes * 100.0) if limit_bytes else 0.0
 
