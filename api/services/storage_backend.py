@@ -89,3 +89,66 @@ class LocalStorageBackend(StorageBackend):
     def get_local_path(self, user_id:int,filename:str) -> Path | None:
         return self._file_path(user_id, filename)
 
+class S3StorageBackend(StorageBackend):
+    def __init__(self):
+        self.bucket = S3_BUCKET_NAME
+        self.client = boto3.client(
+            "s3",
+            region_name=S3_REGION,
+            aws_access_key_id=S3_ACCESS_KEY_ID or None,
+            aws_secret_access_key=S3_SECRET_ACCESS_KEY or None,
+            endpoint_url=S3_ENDPOINT_URL or None,
+        )
+    
+    def _key(self, user_id:int, filename:str) -> str:
+        return f"{S3_KEY_PREFIX}/{user_id}/{filename}"
+
+    def save_file(self, user_id:int, filename:str, content:bytes) -> str:
+        key = self._key(user_id, filename)
+        self.client.upload_fileobj(
+            io.BytesIO(content),
+            self.bucket,
+            key,
+        )
+        return key
+
+    def delete_file(self, user_id:int, filename:str) -> None:
+        key = self._key(user_id, filename)
+        self.client.delete_object(Bucket=self.bucket, Key=key)
+
+    def list_files(self, user_id:int) -> list[dict[str, Any]]:
+        prefix = f"{S3_KEY_PREFIX}/{user_id}/"
+
+        response = self.client.list_objects_v2(Bucket=self.bucket, Prefix=prefix)
+
+        contents = response.get("Contents", [])
+
+        files:list[dict[str, Any]] = []
+        for obj in contents:
+            key = obj["Key"]
+            if key.endswith("/"):
+                continue
+            files.append({
+                "filename": key.split("/")[-1],
+                "uploaded_at": obj["LastModified"].timestamp()
+            })
+
+        files.sort(key=lambda x: x["uploaded_at"],reverse=True)
+
+        return files
+    
+    def get_file_bytes(self, user_id:int, filename: str) -> bytes:
+        key = self._key(user_id, filename)
+        response = self.client.get_object(Bucket=self.bucket, Key=key)
+        return response["Body"].read()
+
+    def get_local_path(self, user_id:int, filename:str) -> Path | None:
+        return None
+
+def get_storage_backend() -> StorageBackend:
+    if STORAGE_BACKEND == "local":
+        return LocalStorageBackend()
+    elif STORAGE_BACKEND == "s3":
+        return S3StorageBackend()
+    else:
+        raise ValueError(f"Invalid storage backend: {STORAGE_BACKEND}")
