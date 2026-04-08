@@ -46,3 +46,46 @@ class StorageBackend(ABC):
         Remote backend can return None.
         """
         raise NotImplementedError
+
+
+class LocalStorageBackend(StorageBackend):
+
+    def _user_dir(self, user_id:int) -> Path:
+        return UPLOAD_DIR / str(user_id)
+
+        def _file_path(self,user_id:int, filename:str) -> Path:
+            return self._user_dir(user_id) / filename
+
+    def save_file(self, user_id:int, filename:str, content:bytes) -> str:
+        user_dir = self._user_dir(user_id)
+        user_dir.mkdir(parents=True, exist_ok=True)
+        path = self._file_path(user_id, filename)
+        path.write_bytes(content)
+        return str(path)
+
+    def delete_file(self, user_id:int, filename:str) -> None:
+        path = self._file_path(user_id, filename)
+        if path.exists():
+            path.unlink()
+
+    def list_files(self, user_id:int) -> list[dict[str, Any]]:
+        user_dir = self._user_dir(user_id)
+        if not user_dir.exists():
+            return []
+        files:list[dict[str, Any]] = []
+        for f in user_dir.iterdir():
+            if f.is_file():
+                files.append({
+                    "filename": f.name,
+                    "uploaded_at": f.stat().st_ctime
+                }
+            )
+        files.sort(key=lambda x: x["uploaded_at"],reverse=True)
+        return files
+
+    def get_file_bytes(self, user_id:int, filename:str) -> bytes:
+        return self._file_path(user_id, filename).read_bytes()
+    
+    def get_local_path(self, user_id:int,filename:str) -> Path | None:
+        return self._file_path(user_id, filename)
+
