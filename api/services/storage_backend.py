@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Optional
+from shutil import copyfileobj
+from typing import Any, BinaryIO
 import io
 
 import boto3
@@ -21,9 +22,14 @@ from config import (
 
 class StorageBackend(ABC):
 
-    @abstractmethod
     def save_file(self, user_id:int,filename:str, content:bytes) -> str:
-        """Save file and return storage key/refernce."""
+        """Save bytes content and return a storage reference."""
+        with io.BytesIO(content) as fileobj:
+            return self.save_fileobj(user_id, filename, fileobj)
+
+    @abstractmethod
+    def save_fileobj(self, user_id:int, filename:str, fileobj: BinaryIO) -> str:
+        """Save a binary file object and return a storage reference."""
         raise NotImplementedError
 
     @abstractmethod
@@ -64,11 +70,14 @@ class LocalStorageBackend(StorageBackend):
     def _file_path(self, user_id:int, filename:str) -> Path:
         return self._user_dir(user_id) / filename
 
-    def save_file(self, user_id:int, filename:str, content:bytes) -> str:
+    def save_fileobj(self, user_id:int, filename:str, fileobj: BinaryIO) -> str:
         user_dir = self._user_dir(user_id)
         user_dir.mkdir(parents=True, exist_ok=True)
         path = self._file_path(user_id, filename)
-        path.write_bytes(content)
+        if hasattr(fileobj, "seek"):
+            fileobj.seek(0)
+        with path.open("wb") as destination:
+            copyfileobj(fileobj, destination)
         return str(path)
 
     def delete_file(self, user_id:int, filename:str) -> None:
@@ -126,10 +135,12 @@ class S3StorageBackend(StorageBackend):
     def _key(self, user_id:int, filename:str) -> str:
         return f"{S3_KEY_PREFIX}/{user_id}/{filename}"
 
-    def save_file(self, user_id:int, filename:str, content:bytes) -> str:
+    def save_fileobj(self, user_id:int, filename:str, fileobj: BinaryIO) -> str:
         key = self._key(user_id, filename)
+        if hasattr(fileobj, "seek"):
+            fileobj.seek(0)
         self.client.upload_fileobj(
-            io.BytesIO(content),
+            fileobj,
             self.bucket,
             key,
         )

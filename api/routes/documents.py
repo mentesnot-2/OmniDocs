@@ -4,16 +4,12 @@ from api.utils.logging_config import logger
 from pathlib import Path
 from typing import List
 from pydantic import BaseModel
-from retrieval import Retriever
-from generation import AnswerGenerator
 from config import (
     TOP_K,
-    UPLOAD_DIR,
     ALLOWED_EXTENSIONS,
     MAX_FILE_SIZE_MB,
 )
 from api.rate_limiter import limiter
-from api.storage import dir_size_bytes
 from api.services.usage_limits import (
     enforce_upload_limit,
     enforce_storage_limit,
@@ -22,7 +18,7 @@ from api.services.usage_limits import (
     get_plan_storage_limit_bytes,
 )
 from api.services.storage_backend import get_storage_backend
-from api.services.ingestion_file import write_temp_file
+from api.services.ingestion_file import FileTooLargeError, write_upload_to_temp_file
 
 
 
@@ -161,34 +157,49 @@ async def upload(
             detail=f"File {safe_filename} has an invalid extension. Allowed extensions are {ALLOWED_EXTENSIONS}.",
         )
 
-    content = await file.read()
-    size_mb = len(content) / (1024 * 1024)
-    enforce_storage_limit(current_user, len(content))
     enforce_upload_limit(db, current_user)
-    if size_mb > MAX_FILE_SIZE_MB:
-        logger.error(f"Document {safe_filename} is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Document is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.",
-        )
-    logger.info(f"Document {safe_filename} uploaded successfully. Size: {size_mb:.2f} MB.")
+    max_bytes = MAX_FILE_SIZE_MB * 1024 * 1024
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > max_bytes:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"Document is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.",
+                )
+        except ValueError:
+            logger.warning(f"Invalid content-length header for upload: {content_length}")
+
     storage = get_storage_backend()
     storage_saved = False
     indexing_completed = False
+    temp_upload_path: Path | None = None
 
-    storage.save_file(current_user.id, safe_filename, content)
-    storage_saved = True
-
-    local_path = storage.get_local_path(current_user.id, safe_filename)
-    temp_file_used = False
-    if local_path is not None:
-        ingest_path = local_path
-    else:
-        ingest_path = write_temp_file(safe_filename, content)
-        temp_file_used = True
-
-    # Ingest, chunk, embed, and store
     try:
+        try:
+            temp_upload_path, total_bytes = await write_upload_to_temp_file(
+                file,
+                safe_filename,
+                max_bytes=max_bytes,
+            )
+        except FileTooLargeError:
+            logger.error(f"Document {safe_filename} is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.")
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Document is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.",
+            )
+
+        enforce_storage_limit(current_user, total_bytes)
+        size_mb = total_bytes / (1024 * 1024)
+        logger.info(f"Document {safe_filename} uploaded successfully. Size: {size_mb:.2f} MB.")
+
+        with temp_upload_path.open("rb") as upload_stream:
+            storage.save_fileobj(current_user.id, safe_filename, upload_stream)
+        storage_saved = True
+
+        local_path = storage.get_local_path(current_user.id, safe_filename)
+        ingest_path = local_path if local_path is not None else temp_upload_path
+
         try:
             parsed = ingest_document(ingest_path)
             logger.info(f"Document {safe_filename} parsed successfully.")
@@ -233,8 +244,9 @@ async def upload(
         _track_usage_event(db, current_user.id, "upload")
         indexing_completed = True
     finally:
-        if temp_file_used and ingest_path.exists():
-            ingest_path.unlink(missing_ok=True)
+        await file.close()
+        if temp_upload_path is not None and temp_upload_path.exists():
+            temp_upload_path.unlink(missing_ok=True)
         if storage_saved and not indexing_completed:
             try:
                 storage.delete_file(current_user.id, safe_filename)
