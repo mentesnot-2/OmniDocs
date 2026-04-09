@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from datetime import datetime
 import secrets
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
 import httpx
 
 from api.database import get_db
@@ -74,6 +74,14 @@ def _response_with_cookies(user: User, access_token: str, refresh_token: str) ->
 
 def _google_callback_url() -> str:
     return f"{FRONTEND_BASE_URL.rstrip('/')}/api/auth/oauth/google/callback"
+
+
+def _oauth_error_response(message: str) -> Response:
+    """Return users to login with a safe, user-visible OAuth error."""
+    redirect_url = f"{FRONTEND_BASE_URL.rstrip('/')}/login?error={quote(message)}"
+    resp = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
+    resp.delete_cookie(key=OAUTH_STATE_COOKIE, path="/")
+    return resp
 
 
 def _ensure_sso_google_enabled() -> None:
@@ -172,10 +180,7 @@ async def oauth_google_callback(request: Request, code: str | None = None, state
     _ensure_sso_google_enabled()
     expected_state = request.cookies.get(OAUTH_STATE_COOKIE)
     if not code or not state or not expected_state or state != expected_state:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid OAuth callback state or code.",
-        )
+        return _oauth_error_response("Invalid OAuth callback state or code.")
 
     token_payload = {
         "code": code,
@@ -188,38 +193,43 @@ async def oauth_google_callback(request: Request, code: str | None = None, state
     async with httpx.AsyncClient(timeout=15.0) as client:
         token_res = await client.post("https://oauth2.googleapis.com/token", data=token_payload)
         if token_res.status_code != 200:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to exchange Google auth code.",
-            )
+            return _oauth_error_response("Failed to exchange Google auth code.")
         access_token_google = token_res.json().get("access_token")
         if not access_token_google:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Google token response is missing access_token.",
-            )
+            return _oauth_error_response("Google token response is missing access token.")
 
         userinfo_res = await client.get(
             "https://openidconnect.googleapis.com/v1/userinfo",
             headers={"Authorization": f"Bearer {access_token_google}"},
         )
         if userinfo_res.status_code != 200:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to fetch Google user profile.",
-            )
+            return _oauth_error_response("Failed to fetch Google user profile.")
         profile = userinfo_res.json()
 
     email = profile.get("email")
     sub = profile.get("sub")
+    email_verified = bool(profile.get("email_verified"))
     if not email or not sub:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google profile did not include required fields.",
-        )
+        return _oauth_error_response("Google profile did not include required fields.")
+    if not email_verified:
+        return _oauth_error_response("Google account email is not verified.")
 
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
+    user = db.query(User).filter(User.oauth_sub == sub).first()
+    if user:
+        ensure_user_is_active(user)
+    else:
+        existing_user = db.query(User).filter(User.email == email).first()
+        if existing_user:
+            ensure_user_is_active(existing_user)
+            logger.warning(
+                "Blocked Google OAuth auto-link for existing account email=%s user_id=%s",
+                existing_user.email,
+                existing_user.id,
+            )
+            return _oauth_error_response(
+                "An account with this email already exists. Sign in with your existing method."
+            )
+
         user = User(
             email=email,
             hashed_password=hash_password(secrets.token_urlsafe(32)),
@@ -228,13 +238,6 @@ async def oauth_google_callback(request: Request, code: str | None = None, state
             oauth_sub=sub,
         )
         db.add(user)
-        db.commit()
-        db.refresh(user)
-    else:
-        ensure_user_is_active(user)
-        user.is_verified = True
-        user.auth_provider = user.auth_provider or "google"
-        user.oauth_sub = user.oauth_sub or sub
         db.commit()
         db.refresh(user)
 
