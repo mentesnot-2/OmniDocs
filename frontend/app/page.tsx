@@ -342,8 +342,8 @@ export default function Home() {
                 className="inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-6 py-3.5 text-base font-semibold text-slate-950 transition hover:bg-emerald-300"
               >
                 Create your account
-              </a>
-              <a
+          </a>
+          <a
                 href="/login"
                 className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-6 py-3.5 text-base font-semibold text-white transition hover:bg-white/10"
               >

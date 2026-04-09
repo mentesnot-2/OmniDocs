@@ -47,7 +47,7 @@ from ingestion import ingest_document
 from chunking import chunk_document
 from embeddings import EmbeddingGenerator
 from vectorstore import ChromaVectorStore
-from api.services.runtime_services import get_retriever
+from api.services.runtime_services import get_answer_generator, get_retriever
 router = APIRouter(prefix="/documents",tags=["documents"])
 
 def _track_usage_event(db: Session, user_id: int, event_type: str) -> None:
@@ -173,7 +173,11 @@ async def upload(
         )
     logger.info(f"Document {safe_filename} uploaded successfully. Size: {size_mb:.2f} MB.")
     storage = get_storage_backend()
+    storage_saved = False
+    indexing_completed = False
+
     storage.save_file(current_user.id, safe_filename, content)
+    storage_saved = True
 
     local_path = storage.get_local_path(current_user.id, safe_filename)
     temp_file_used = False
@@ -227,9 +231,17 @@ async def upload(
         ]
         store.add_chunks(texts, embeddings, metadatas)
         _track_usage_event(db, current_user.id, "upload")
+        indexing_completed = True
     finally:
         if temp_file_used and ingest_path.exists():
             ingest_path.unlink(missing_ok=True)
+        if storage_saved and not indexing_completed:
+            try:
+                storage.delete_file(current_user.id, safe_filename)
+            except Exception as cleanup_exc:
+                logger.warning(
+                    f"Failed to clean up stored file {safe_filename} after upload failure: {cleanup_exc}"
+                )
 
    
 
@@ -304,10 +316,10 @@ def get_storage(
     storage = get_storage_backend()
     used_bytes = storage.get_usage_bytes(current_user.id)
     plan = get_plan_limits(current_user)
-    limit = get_plan_storage_limit_bytes(current_user)
+    limit_bytes = get_plan_storage_limit_bytes(current_user)
     return {
         "used_bytes": used_bytes,
-        "limit_bytes": limit,
+        "limit_bytes": limit_bytes,
         "used_percent": round((used_bytes / limit_bytes * 100.0) if limit_bytes else 0.0, 2),
         "plan_id": plan.plan_id,
         "plan_name": plan.name,
