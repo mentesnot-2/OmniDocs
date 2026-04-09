@@ -23,6 +23,16 @@ async def get_token(request: Request) -> str | None:
     return None
 
 
+def ensure_user_is_active(user: User) -> User:
+    """Reject deactivated users across all authenticated flows."""
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is not active. Please contact support.",
+        )
+    return user
+
+
 def get_current_user(
     token: str | None = Depends(get_token),
     db: Session = Depends(get_db),
@@ -46,7 +56,7 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
-    return user
+    return ensure_user_is_active(user)
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
     """Require the user to be an admin."""

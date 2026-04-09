@@ -18,7 +18,7 @@ from api.core.security import (
     create_refresh_token,
     decode_refresh_token,
 )
-from api.dependencies import get_current_user
+from api.dependencies import ensure_user_is_active, get_current_user
 from config.settings import (
     EMAIL_VERIFICATION_REQUIRED,
     EMAIL_VERIFICATION_BASE_URL,
@@ -231,6 +231,7 @@ async def oauth_google_callback(request: Request, code: str | None = None, state
         db.commit()
         db.refresh(user)
     else:
+        ensure_user_is_active(user)
         user.is_verified = True
         user.auth_provider = user.auth_provider or "google"
         user.oauth_sub = user.oauth_sub or sub
@@ -293,6 +294,7 @@ def refresh(request: Request, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
+    ensure_user_is_active(user)
     access_token = create_access_token(data={"sub": str(user.id)})
     new_refresh_token = create_refresh_token(user.id)
     resp = Response(
