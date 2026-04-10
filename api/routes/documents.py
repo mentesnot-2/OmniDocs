@@ -41,9 +41,12 @@ from api.dependencies import get_current_user
 from api.models import User, UsageEvent
 from ingestion import ingest_document
 from chunking import chunk_document
-from embeddings import EmbeddingGenerator
 from vectorstore import ChromaVectorStore
-from api.services.runtime_services import get_answer_generator, get_retriever
+from api.services.runtime_services import (
+    get_answer_generator,
+    get_embedding_generator,
+    get_retriever,
+)
 router = APIRouter(prefix="/documents",tags=["documents"])
 
 def _track_usage_event(db: Session, user_id: int, event_type: str) -> None:
@@ -225,7 +228,7 @@ async def upload(
                 detail="No chunks produced from document.",
             )
         texts = [c.text for c in chunks]
-        gen = EmbeddingGenerator()
+        gen = get_embedding_generator()
         embeddings = gen.embed_batch(texts)
 
         store = ChromaVectorStore()
