@@ -2,7 +2,7 @@
 TXT and Markdown text extraction.
 """
 from pathlib import Path
-from parsers.base import ParsedDocument
+from parsers.base import ParsedDocument, normalize_source_file
 
 def parse_txt(file_path:Path) -> ParsedDocument:
     """
@@ -19,7 +19,7 @@ def parse_txt(file_path:Path) -> ParsedDocument:
 
     return ParsedDocument(
         content=content,
-        source_file=str(file_path),
+        source_file=normalize_source_file(file_path),
         metadata={
             "format":format_type,
         }

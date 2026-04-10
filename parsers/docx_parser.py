@@ -3,7 +3,7 @@ DOCX (Microsoft Word) text extraction using python-docx.
 """
 
 from pathlib import Path
-from parsers.base import ParsedDocument
+from parsers.base import ParsedDocument, normalize_source_file
 
 def parse_docx(file_path:Path) -> ParsedDocument:
     """
@@ -40,6 +40,6 @@ def parse_docx(file_path:Path) -> ParsedDocument:
 
     return ParsedDocument(
         content=full_text,
-        source_file=str(file_path),
+        source_file=normalize_source_file(file_path),
         metadata=metadata,
     )

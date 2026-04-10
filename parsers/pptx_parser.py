@@ -1,7 +1,7 @@
 """PowerPoint (.pptx) parser. """
 
 from pathlib import Path
-from parsers.base import ParsedDocument
+from parsers.base import ParsedDocument, normalize_source_file
 
 
 def parse_pptx(file_path: Path) -> ParsedDocument:
@@ -26,6 +26,6 @@ def parse_pptx(file_path: Path) -> ParsedDocument:
 
     return ParsedDocument(
         content=content,
-        source_file=str(file_path.name),
+        source_file=normalize_source_file(file_path),
         metadata=metadata,
     )

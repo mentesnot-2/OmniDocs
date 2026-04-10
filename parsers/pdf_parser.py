@@ -4,7 +4,7 @@ PDF text extraction using pypdf.
 """
 
 from pathlib import Path
-from parsers.base import ParsedDocument
+from parsers.base import ParsedDocument, normalize_source_file
 
 def parse_pdf(file_path:Path) -> ParsedDocument:
     """
@@ -31,6 +31,6 @@ def parse_pdf(file_path:Path) -> ParsedDocument:
     }
     return ParsedDocument(
         content=full_text,
-        source_file=str(file_path.name),
+        source_file=normalize_source_file(file_path),
         metadata=metadata,
     )

@@ -2,7 +2,7 @@
 XLSX (Microsoft Excel) text extraction using openpyxl.
 """
 from pathlib import Path
-from parsers.base import ParsedDocument
+from parsers.base import ParsedDocument, normalize_source_file
 
 def parse_xlsx(file_path:Path) -> ParsedDocument:
     """Extract text from all sheets in an Excel file."""
@@ -31,6 +31,6 @@ def parse_xlsx(file_path:Path) -> ParsedDocument:
     wb.close()
     return ParsedDocument(
         content=full_text,
-        source_file=file_path.name,
+        source_file=normalize_source_file(file_path),
         metadata=metadata,
     )

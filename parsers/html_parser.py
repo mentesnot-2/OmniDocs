@@ -3,7 +3,7 @@ HTML text extraction using BeautifulSoup.
 
 """
 from pathlib import Path
-from parsers import ParsedDocument
+from parsers.base import ParsedDocument, normalize_source_file
 
 
 def parse_html(file_path:Path) -> ParsedDocument:
@@ -26,7 +26,7 @@ def parse_html(file_path:Path) -> ParsedDocument:
 
     return ParsedDocument(
         content=full_text,
-        source_file=file_path.name,
+        source_file=normalize_source_file(file_path),
         metadata={
             "format":"html",
         }

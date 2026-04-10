@@ -4,7 +4,7 @@ CSV text extraction using Python's built-in csv module.
 
 import csv
 from pathlib import Path
-from parsers.base import ParsedDocument
+from parsers.base import ParsedDocument, normalize_source_file
 
 def parse_csv(file_path:Path) -> ParsedDocument:
     """
@@ -26,7 +26,7 @@ def parse_csv(file_path:Path) -> ParsedDocument:
 
     return ParsedDocument(
         content=full_text,
-        source_file=file_path.name,
+        source_file=normalize_source_file(file_path),
         metadata={
             "format":"csv",
             "row_count": len(rows),
