@@ -4,9 +4,13 @@ from pathlib import Path
 from parsers.base import ParsedDocument
 
 
-def parse_pptx(file_path:Path) -> ParsedDocument:
-
+def parse_pptx(file_path: Path) -> ParsedDocument:
+    """Extract text content from PowerPoint slides."""
     from pptx import Presentation
+
+    file_path = Path(file_path)
+    if not file_path.exists():
+        raise FileNotFoundError(f"PPTX not found: {file_path}")
 
     prs = Presentation(file_path)
     texts = []
@@ -15,12 +19,13 @@ def parse_pptx(file_path:Path) -> ParsedDocument:
             if hasattr(shape, "text") and shape.text.strip():
                 texts.append(f"[Slide {i+1}] {shape.text.strip()}")
     content = "\n\n".join(texts) if texts else ""
+    metadata = {
+        "format": "pptx",
+        "slide_count": len(prs.slides),
+    }
 
     return ParsedDocument(
         content=content,
-        metadata={
-            "source_file":file_path.name,
-            "format":"pptx",
-            "slide_count":len(prs.slides),
-        }
+        source_file=str(file_path.name),
+        metadata=metadata,
     )
