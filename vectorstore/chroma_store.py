@@ -4,6 +4,7 @@ Vectore store implementation using chromaDB.
 
 from typing import List,Dict,Any
 from pathlib import Path
+import hashlib
 import chromadb
 from chromadb.config import Settings
 from config import VECTOR_STORE_PATH,COLLECTION_NAME
@@ -47,6 +48,23 @@ class ChromaVectorStore:
         print(f"Collection: {self.collection_name}")
         print(f"Current document count: {self.collection.count()}")
 
+    def _generate_chunk_ids(
+        self,
+        texts: List[str],
+        metadatas: List[Dict[str, Any]],
+    ) -> List[str]:
+        """Generate deterministic, tenant-scoped chunk IDs."""
+        ids: List[str] = []
+        for index, (text, metadata) in enumerate(zip(texts, metadatas)):
+            user_id = str(metadata.get("user_id", "global"))
+            source_file = str(metadata.get("source_file", "unknown"))
+            chunk_index = str(metadata.get("chunk_index", index))
+            digest = hashlib.sha256(
+                f"{user_id}|{source_file}|{chunk_index}|{text}".encode("utf-8")
+            ).hexdigest()
+            ids.append(f"chunk_{digest}")
+        return ids
+
     def add_chunks(
         self,
         texts:List[str],
@@ -65,9 +83,10 @@ class ChromaVectorStore:
         """
         if not texts:
             return
+        if len(texts) != len(embeddings) or len(texts) != len(metadatas):
+            raise ValueError("texts, embeddings, and metadatas must have the same length")
         if ids is None:
-            current_count = self.collection.count()
-            ids = [f"chunk_{current_count + i}" for i in range(len(texts))]
+            ids = self._generate_chunk_ids(texts, metadatas)
         self.collection.add(
             documents=texts,
             embeddings=embeddings,
