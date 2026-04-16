@@ -18,7 +18,14 @@ from vectorstore import ChromaVectorStore
 from retrieval import Retriever
 from generation import AnswerGenerator
 
-def index_documents(file_path:Path, store:ChromaVectorStore, gen:EmbeddingGenerator):
+CLI_USER_ID = "cli"
+
+def index_documents(
+    file_path: Path,
+    store: ChromaVectorStore,
+    gen: EmbeddingGenerator,
+    user_id: str = CLI_USER_ID,
+):
     """Ingest, chunk, embed, and store a single document."""
     print(f"\nIndexing: {file_path.name}")
 
@@ -42,7 +49,7 @@ def index_documents(file_path:Path, store:ChromaVectorStore, gen:EmbeddingGenera
         {
             "source_file": c.source_file,
             "chunk_index":c.chunk_index,
-            "user_id":user_id,
+            "user_id": user_id,
             **{k:str(v) for k,v in c.metadata.items()}
         }
         for c in chunks
