@@ -10,6 +10,7 @@ from api.services.billing import create_checkout_session, create_portal_session
 from config.settings import STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
 from config.plans import PLANS, DEFAULT_PLAN_ID
 from api.rate_limiter import limiter
+from api.utils.logging_config import logger
 
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -45,8 +46,11 @@ def start_checkout(request: Request, db: Session = Depends(get_db), current_user
         if not url:
             raise HTTPException(status_code=500, detail="Failed to create checkout session")
         return {"url":url}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed to start Stripe checkout for user %s", current_user.id)
+        raise HTTPException(status_code=500, detail="Unable to start checkout right now.")
 
 @router.post("/portal")
 @limiter.limit("10/minute")
@@ -56,8 +60,11 @@ def open_portal(request: Request, db: Session = Depends(get_db), current_user: U
             raise HTTPException(status_code=400, detail="No Stripe customer found")
         url = create_portal_session(current_user.stripe_customer_id)
         return {"url":url}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed to open Stripe portal for user %s", current_user.id)
+        raise HTTPException(status_code=500, detail="Unable to open billing portal right now.")
 
 @router.post("/webhook")
 @limiter.limit("120/minute")
@@ -71,8 +78,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)) -> dic
                 payload, sig_header, STRIPE_WEBHOOK_SECRET
 
             )
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Invalid webhook signature: {e}")
+        except Exception:
+            logger.exception("Invalid Stripe webhook signature")
+            raise HTTPException(status_code=400, detail="Invalid webhook signature.")
         event_type = event["type"]
         obj = event["data"]["object"]
 
@@ -109,5 +117,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)) -> dic
                     user.stripe_subscription_id = None
                 db.commit()
         return {"ok":True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Stripe webhook processing failed")
+        raise HTTPException(status_code=500, detail="Webhook processing failed.")

@@ -206,11 +206,11 @@ async def upload(
         try:
             parsed = ingest_document(ingest_path)
             logger.info(f"Document {safe_filename} parsed successfully.")
-        except Exception as e:
-            logger.error(f"Failed to parse document {safe_filename}: {str(e)}")
+        except Exception:
+            logger.exception("Failed to parse document %s", safe_filename)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to parse document: {str(e)}",
+                detail="Failed to parse document.",
             )
 
         if not parsed.content.strip():
