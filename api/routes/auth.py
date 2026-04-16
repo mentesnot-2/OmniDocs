@@ -3,20 +3,22 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timedelta
 import secrets
 from urllib.parse import urlencode, quote
+from uuid import uuid4
 import httpx
 
 from api.database import get_db
-from api.models import User
+from api.models import RefreshSession, User
 from api.schemas.user import UserSignup, UserLogin, UserResponse, TokenResponse
 from api.core.security import (
     hash_password,
     verify_password,
     create_access_token,
-    create_refresh_token,
+    create_refresh_token_with_jti,
     decode_refresh_token,
+    REFRESH_TOKEN_EXPIRE_DAYS,
 )
 from api.dependencies import ensure_user_is_active, get_current_user
 from config.settings import (
@@ -70,6 +72,47 @@ def _response_with_cookies(user: User, access_token: str, refresh_token: str) ->
     resp = Response(content=body.model_dump_json(), media_type="application/json")
     _set_auth_cookies(resp, access_token, refresh_token)
     return resp
+
+
+def _create_refresh_session(db: Session, user: User) -> str:
+    """Persist a refresh session and return a signed refresh token."""
+    jti = uuid4().hex
+    expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    db.add(
+        RefreshSession(
+            user_id=user.id,
+            jti=jti,
+            expires_at=expires_at,
+        )
+    )
+    db.commit()
+    return create_refresh_token_with_jti(user.id, jti)
+
+
+def _revoke_refresh_session(db: Session, refresh_token: str | None, *, replacement_jti: str | None = None) -> None:
+    """Best-effort revocation for the refresh token currently held by the client."""
+    if not refresh_token:
+        return
+
+    payload = decode_refresh_token(refresh_token)
+    if not payload:
+        return
+
+    session = db.query(RefreshSession).filter(RefreshSession.jti == payload["jti"]).first()
+    if not session or session.revoked_at is not None:
+        return
+
+    session.revoked_at = datetime.utcnow()
+    if replacement_jti:
+        session.replaced_by_jti = replacement_jti
+    db.commit()
+
+
+def _issue_auth_response(db: Session, user: User) -> Response:
+    """Issue fresh access and revocable refresh cookies for a user."""
+    access_token = create_access_token(data={"sub": str(user.id)})
+    refresh_token = _create_refresh_session(db, user)
+    return _response_with_cookies(user, access_token, refresh_token)
 
 
 def _google_callback_url() -> str:
@@ -141,9 +184,7 @@ def signup(request: Request, data: UserSignup, db: Session = Depends(get_db)):
             media_type="application/json",
             status_code=status.HTTP_201_CREATED
         )
-    access_token = create_access_token(data={"sub": str(user.id)})
-    refresh_token = create_refresh_token(user.id)
-    return _response_with_cookies(user, access_token, refresh_token)
+    return _issue_auth_response(db, user)
 
 
 @router.get("/oauth/google/start")
@@ -242,7 +283,7 @@ async def oauth_google_callback(request: Request, code: str | None = None, state
         db.refresh(user)
 
     access_token = create_access_token(data={"sub": str(user.id)})
-    refresh_token = create_refresh_token(user.id)
+    refresh_token = _create_refresh_session(db, user)
     redirect_url = f"{FRONTEND_BASE_URL.rstrip('/')}/dashboard"
     resp = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
     _set_auth_cookies(resp, access_token, refresh_token)
@@ -270,9 +311,7 @@ def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Email not verified. Please check inbox"
         )
-    access_token = create_access_token(data={"sub": str(user.id)})
-    refresh_token = create_refresh_token(user.id)
-    return _response_with_cookies(user, access_token, refresh_token)
+    return _issue_auth_response(db, user)
 
 
 @router.post("/refresh")
@@ -290,6 +329,12 @@ def refresh(request: Request, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
         )
+    session = db.query(RefreshSession).filter(RefreshSession.jti == payload["jti"]).first()
+    if not session or session.user_id != int(payload["sub"]) or not session.is_active():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        )
     user_id = int(payload["sub"])
     user = db.query(User).get(user_id)
     if not user:
@@ -298,8 +343,18 @@ def refresh(request: Request, db: Session = Depends(get_db)):
             detail="User not found",
         )
     ensure_user_is_active(user)
+    new_jti = uuid4().hex
+    new_session = RefreshSession(
+        user_id=user.id,
+        jti=new_jti,
+        expires_at=datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+    )
+    session.revoked_at = datetime.utcnow()
+    session.replaced_by_jti = new_jti
+    db.add(new_session)
+    db.commit()
     access_token = create_access_token(data={"sub": str(user.id)})
-    new_refresh_token = create_refresh_token(user.id)
+    new_refresh_token = create_refresh_token_with_jti(user.id, new_jti)
     resp = Response(
         content=UserResponse(id=user.id, email=user.email, is_admin=bool(user.is_admin)).model_dump_json(),
         media_type="application/json",
@@ -318,7 +373,8 @@ def me(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/logout")
-def logout():
+def logout(request: Request, db: Session = Depends(get_db)):
+    _revoke_refresh_session(db, request.cookies.get(REFRESH_COOKIE))
     resp = Response(content='{"detail":"Logged out"}', media_type="application/json")
     resp.delete_cookie(key=AUTH_COOKIE, path="/")
     resp.delete_cookie(key=REFRESH_COOKIE, path="/")
