@@ -80,4 +80,63 @@ def app(monkeypatch,tmp_path):
     main.app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
+
+@pytest.fixture()
+def client(app):
+    with TestClient(app) as client:
+        yield test_client
+
+@pytest.fixture()
+def db_session(app):
+    SessionLocal = app.state.testing_session_factory
+    db = SessionLocal()
+
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture()
+def make_user(db_session):
+    counter = {"value": 0}
+
+    def _make_user(**overrides):
+        counter["value"] += 1
+        raw_password = overrides.pop("raw_password", "Password1!")
+        user = User(
+            email=overrides.pop("email",f"user{counter['value']}@example.com"),
+            hashed_password=hash_password(raw_password),
+            is_active=overrides.pop("is_active", True),
+            is_verified=overrides.pop("is_verified", True),
+            is_admin=overrides.pop("is_admin", False),
+            auth_provider=overrides.pop("auth_provider", None),
+            oauth_sub=overrides.pop("oauth_sub", None),
+            plan_id=overrides.pop("plan_id", "free"),
+            stripe_customer_id=overrides.pop("stripe_customer_id", None),
+            stripe_subscription_id=overrides.pop("stripe_subscription_id", None),
+            billing_status=overrides.pop("billing_status", None),
+        )
+
+        for key, value in overrides.items():
+            setattr(user,key,value)
+
+        db_session.add(user)
+        db_session.commit()
+        db_session.refresh(user)
+        user._raw_password = raw_password
+        return user
+
+    return _make_user
+
+@pytest.fixture()
+def force_current_user(app):
+    from api.dependencies import get_current_user
     
+    def _force(user):
+        app.dependency_overrides[get_current_user] = lambda: user
+        return user
+
+    yeild _force
+
+    app.dependency_overrides.pop(get_current_user,None)
