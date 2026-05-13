@@ -30,7 +30,7 @@ class DummyRetriever:
             "query": query,
             "chunks": [],
             "context_text": "",
-            num_results": 0,
+            "num_results": 0,
         }
 
 class DummyAnswerGenerator:
@@ -47,14 +47,14 @@ class DummyAnswerGenerator:
 def app(monkeypatch,tmp_path):
     import api.services.runtime_services as runtime_services
 
-    monkeypatch.setattr(runtime_services, "get_embedding_generator",lambda: DummyEmbedddingGenerator())
+    monkeypatch.setattr(runtime_services, "get_embedding_generator",lambda: DummyEmbeeddingGenerator())
     monkeypatch.setattr(runtime_services, "get_retriever",lambda: DummyRetriever())
     monkeypatch.setattr(runtime_services, "get_answer_generator",lambda: DummyAnswerGenerator())
 
 
     db_path = tmp_path / "test.db"
-    engine = create_engine(f"sqlite:///{db_path}"),
-    connect_args={"check_same_thread":False}
+    engine = create_engine(f"sqlite:///{db_path}",connect_args={"check_same_thread":False})
+    
 
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -84,7 +84,7 @@ def app(monkeypatch,tmp_path):
 @pytest.fixture()
 def client(app):
     with TestClient(app) as client:
-        yield test_client
+        yield client
 
 @pytest.fixture()
 def db_session(app):
@@ -137,6 +137,6 @@ def force_current_user(app):
         app.dependency_overrides[get_current_user] = lambda: user
         return user
 
-    yeild _force
+    yield _force
 
     app.dependency_overrides.pop(get_current_user,None)
