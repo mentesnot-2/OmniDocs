@@ -19,6 +19,7 @@ from api.services.usage_limits import (
 )
 from api.services.storage_backend import get_storage_backend
 from api.services.ingestion_file import FileTooLargeError, write_upload_to_temp_file
+from api.services.file_validation import validate_uploaded_file_content
 
 
 
@@ -192,6 +193,10 @@ async def upload(
                 detail=f"Document is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.",
             )
 
+        
+        
+        content = temp_upload_path.read_bytes()
+        validate_uploaded_file_content(safe_filename, content)
         enforce_storage_limit(current_user, total_bytes)
         size_mb = total_bytes / (1024 * 1024)
         logger.info(f"Document {safe_filename} uploaded successfully. Size: {size_mb:.2f} MB.")

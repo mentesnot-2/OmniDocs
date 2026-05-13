@@ -25,7 +25,7 @@ TEXT_LIKE_EXTENSIONS = {".txt", ".md", ".csv", ".html", ".htm"}
 # Basic OOXML structure checks
 
 OOXML_REQUIRED_MEMBERS = {
-    ".docs": {"[Content_Types].xml", "word/document.xml"},
+    ".docx": {"[Content_Types].xml", "word/document.xml"},
     ".xlsx": {"[Content_Types].xml", "xl/workbook.xml"},
     ".pptx": {"[Content_Types].xml", "ppt/presentation.xml"},
 }
@@ -91,7 +91,7 @@ def _validate_ooxml_archive(ext: str, content: bytes) -> None:
 
             for info in infos:
                 total_uncompressed+=int(info.file_size or 0)
-                total_compressed+=int(info.file_size or 0)
+                total_compressed+=int(info.compress_size or 0)
 
             
             if total_compressed > 0:
