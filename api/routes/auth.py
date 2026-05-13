@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,timezone
 import secrets
 from urllib.parse import urlencode, quote
 from uuid import uuid4
@@ -390,7 +390,7 @@ def verify_email(token:str,db:Session=Depends(get_db)):
             detail="Invalid verification token",
         )
     
-    if user.verification_expires_at and user.verification_expires_at < datetime.utcnow():
+    if user.verification_expires_at and user.verification_expires_at < datetime.now(timezone.utc):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Verification token has expired"
