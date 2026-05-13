@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${apiUrl}/:path*` }];
   },
+  devIndicators: false,
 };
 
 export default nextConfig;
