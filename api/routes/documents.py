@@ -122,8 +122,8 @@ def delete_document(
             detail=f"File {filename} not found.",
         )
     # Delete from vectore store
-    store = ChromaVectorStore()
-    store.delete_by_source(safe_filename, str(current_user.id))
+    store = ChromaVectorStore(user_id=str(current_user.id))
+    store.delete_by_source(safe_filename)
 
     storage.delete_file(current_user.id, safe_filename)
 
@@ -236,9 +236,9 @@ async def upload(
         gen = get_embedding_generator()
         embeddings = gen.embed_batch(texts)
 
-        store = ChromaVectorStore()
+        store = ChromaVectorStore(user_id=str(current_user.id))
         # Delete old chunks for re-upload (same filename)
-        store.delete_by_source(safe_filename, str(current_user.id))
+        store.delete_by_source(safe_filename)
         metadatas = [
             {
                 "source_file": c.source_file,

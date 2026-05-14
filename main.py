@@ -66,7 +66,7 @@ def index_mode(path_arg:str):
     if not path.exists():
         print(f"Error: Path does not exist: {path}")
         return 1
-    store = ChromaVectorStore()
+    store = ChromaVectorStore(user_id=CLI_USER_ID)
     gen = EmbeddingGenerator()
 
     extensions = get_supported_extensions()
@@ -88,7 +88,11 @@ def query_mode(question:str):
     """Answer a question based on indexed documents"""
 
     retriever = Retriever()
-    result = retriever.retrieve_with_context(question,top_k=TOP_K)
+    result = retriever.retrieve_with_context(
+        question,
+        top_k=TOP_K,
+        user_id=CLI_USER_ID,
+        )
 
     if result["num_results"] == 0:
         print("No relevant documents found. documents first.")

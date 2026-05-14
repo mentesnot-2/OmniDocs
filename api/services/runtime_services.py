@@ -1,6 +1,5 @@
 from functools import lru_cache
 
-
 from embeddings import EmbeddingGenerator
 from retrieval import Retriever
 from generation import AnswerGenerator
@@ -10,9 +9,11 @@ from generation import AnswerGenerator
 def get_embedding_generator() -> EmbeddingGenerator:
     return EmbeddingGenerator()
 
+
 @lru_cache(maxsize=1)
 def get_retriever() -> Retriever:
     return Retriever(embedder=get_embedding_generator())
+
 
 @lru_cache(maxsize=1)
 def get_answer_generator() -> AnswerGenerator:
