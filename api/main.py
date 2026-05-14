@@ -13,7 +13,12 @@ from api.utils.logging_config import logger
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from api.rate_limiter import limiter
-from config import ensure_dirs
+from config import (
+    ensure_dirs,
+    CORS_ALLOWED_ORIGINS,
+    CORS_ALLOWED_METHODS,
+    CORS_ALLOWED_HEADERS,
+)
 
 from api.services.runtime_services import  (
     get_embedding_generator, 
@@ -41,10 +46,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=CORS_ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=CORS_ALLOWED_METHODS,
+    allow_headers=CORS_ALLOWED_HEADERS,
 )
 
 

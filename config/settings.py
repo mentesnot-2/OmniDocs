@@ -103,6 +103,25 @@ S3_SECRET_ACCESS_KEY=os.getenv("S3_SECRET_ACCESS_KEY","")
 S3_ENDPOINT_URL=os.getenv("S3_ENDPOINT_URL","")
 S3_KEY_PREFIX=os.getenv("S3_KEY_PREFIX","uploads")
 
+
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", FRONTEND_BASE_URL).split(",")
+    if origin.strip()
+]
+
+CORS_ALLOWED_METHODS = [
+    method.strip().upper()
+    for method in os.getenv("CORS_ALLOWED_METHODS", "GET,POST,PATCH,DELETE,OPTIONS").split(",")
+    if method.strip()
+]
+
+CORS_ALLOWED_HEADERS = [
+    header.strip()
+    for header in os.getenv("CORS_ALLOWED_HEADERS", "Content-Type,X-CSRF-Token,Authorization").split(",")
+    if header.strip()
+]
+
 def ensure_dirs():
     """Create data directories if they don't exist"""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
