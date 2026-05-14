@@ -1,0 +1,44 @@
+# Core
+python-dotenv
+
+# Document parsing
+pypdf
+python-docx
+openpyxl
+beautifulsoup4
+python-pptx
+filetype
+
+# Chunking & text processing
+tiktoken
+
+# Embeddings / AI
+sentence-transformers
+google-genai
+openai
+
+# Vector store
+chromadb
+
+# API
+fastapi
+uvicorn[standard]
+python-multipart
+httpx
+slowapi
+
+# Auth
+python-jose[cryptography]
+bcrypt
+email-validator
+
+# Database
+sqlalchemy
+psycopg[binary]
+
+# Billing / storage
+stripe
+boto3
+
+# Testing / tooling
+pytest
