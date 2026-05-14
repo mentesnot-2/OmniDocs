@@ -1,6 +1,6 @@
 """Common dependencies (auth)."""
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -9,6 +9,10 @@ from api.models import User
 from api.core.security import decode_access_token
 
 AUTH_COOKIE = "omnidocs_token"
+CSRF_COOKIE = "omnidocs_csrf"
+CSRF_HEADER = "X-CSRF-Token"
+
+
 http_bearer = HTTPBearer(auto_error=False)
 
 
@@ -21,6 +25,29 @@ async def get_token(request: Request) -> str | None:
     if creds:
         return creds.credentials
     return None
+
+def require_csrf(
+    request: Request,
+    csrf_header: str | None = Header(default=None, alias=CSRF_HEADER),
+) -> None:
+    """
+    Double-submit CSRF protection for cookie-authenticated browser mutations.
+    Requires a CSRF cookie and matching X-CSRF-Token header.
+    """
+    csrf_cookie = request.cookies.get(CSRF_COOKIE)
+    if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF validation failed",
+        )
+
+    origin = request.headers.get("origin")
+    host = request.headers.get("host")
+    if origin and host and not origin.endswith(host):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid request origin",
+        )
 
 
 def ensure_user_is_active(user: User) -> User:

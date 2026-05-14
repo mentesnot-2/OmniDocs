@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from api.database import get_db
-from api.dependencies import require_admin
+from api.dependencies import require_admin, require_csrf
 from api.models import SupportTicket, User
 from api.rate_limiter import limiter
 
@@ -45,6 +45,7 @@ def set_user_active(
     request: Request,
     user_id: int,
     body: ActiveUpdateRequest,
+    _csrf: None = Depends(require_csrf),
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
@@ -99,6 +100,7 @@ def update_support_ticket(
     request: Request,
     ticket_id: int,
     body: TicketStatusUpdateRequest,
+    _csrf: None = Depends(require_csrf),
     db: Session = Depends(get_db),
     _admin: User = Depends(require_admin),
 ):

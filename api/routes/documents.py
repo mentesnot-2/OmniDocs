@@ -38,7 +38,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status,
 from sqlalchemy.orm import Session
 
 from api.database import get_db
-from api.dependencies import get_current_user
+from api.dependencies import get_current_user , require_csrf
 from api.models import User, UsageEvent
 from ingestion import ingest_document
 from chunking import chunk_document
@@ -86,6 +86,7 @@ def get_documents(
 @router.delete("/{filename}")
 def delete_document(
     filename:str,
+    _csrf: None = Depends(require_csrf),
     db:Session = Depends(get_db),
     current_user: User=Depends(get_current_user),
 
@@ -136,6 +137,7 @@ def delete_document(
 async def upload(
     request: Request,
     file: UploadFile = File(...),
+    _csrf: None = Depends(require_csrf),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -277,6 +279,7 @@ async def upload(
 def query(
     request: Request,
     body: QueryRequest,
+    _csrf: None = Depends(require_csrf),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

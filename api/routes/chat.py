@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from api.database import get_db
-from api.dependencies import get_current_user
+from api.dependencies import get_current_user, require_csrf
 from api.models import User, ChatSession, ChatMessage
 from api.schemas.chat import MessageOut, SessionOut, AddMessageRequest
 from api.rate_limiter import limiter
@@ -17,6 +17,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 @limiter.limit("30/minute")
 def create_session(
     request: Request,
+    _csrf: None = Depends(require_csrf),
     db:Session = Depends(get_db),
     current_user:User = Depends(get_current_user),
 ):
@@ -78,6 +79,7 @@ def add_message(
     request: Request,
     session_id:int,
     body:AddMessageRequest,
+    _csrf: None = Depends(require_csrf),
     db:Session = Depends(get_db),
     current_user:User = Depends(get_current_user),
 ):

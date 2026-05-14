@@ -17,6 +17,7 @@ async function tryRefresh(): Promise<boolean> {
     try {
         const res = await fetch(`${API_BASE}/auth/refresh`, {
             method: "POST",
+            headers: getCsrfHeaders(),
             credentials: "include",
         });
         return res.ok;
@@ -37,7 +38,10 @@ export async function postJson<TReq, Tres>(path: string, body: TReq): Promise<Tr
     const doRequest = () =>
         fetch(`${API_BASE}${path}`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                ...getCsrfHeaders(),
+            },
             body: JSON.stringify(body),
             credentials: "include",
         });
@@ -52,6 +56,7 @@ export async function postFormData(path: string, formData: FormData): Promise<an
     const doRequest = () =>
         fetch(`${API_BASE}${path}`, {
             method: "POST",
+            headers: getCsrfHeaders(),
             body: formData,
             credentials: "include",
         });
@@ -79,6 +84,7 @@ export async function deleteRequest(path: string): Promise<any> {
     const doRequest = () =>
         fetch(`${API_BASE}${path}`, {
             method: "DELETE",
+            headers: getCsrfHeaders(),
             credentials: "include",
         });
     let response = await doRequest();
@@ -86,4 +92,20 @@ export async function deleteRequest(path: string): Promise<any> {
         response = await doRequest();
     }
     return handleResponse(response, () => response.json());
+}
+
+
+function getCookie(name: string): string | null {
+    if (typeof window === "undefined") return null;
+
+    const match = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith(`${name}=`));
+    return match ? decodeURIComponent(match.split("=")[1]) : null;
+}
+
+
+function getCsrfHeaders(): HeadersInit {
+    const csrfCookie = getCookie("omnidocs_csrf");
+    return csrfCookie ? { "X-CSRF-Token": csrfCookie } : {};
 }

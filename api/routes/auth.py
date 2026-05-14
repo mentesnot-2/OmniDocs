@@ -20,7 +20,7 @@ from api.core.security import (
     decode_refresh_token,
     REFRESH_TOKEN_EXPIRE_DAYS,
 )
-from api.dependencies import ensure_user_is_active, get_current_user
+from api.dependencies import CSRF_COOKIE, ensure_user_is_active, get_current_user,require_csrf
 from config.settings import (
     EMAIL_VERIFICATION_REQUIRED,
     EMAIL_VERIFICATION_BASE_URL,
@@ -44,6 +44,7 @@ OAUTH_STATE_COOKIE = "omnidocs_oauth_state"
 
 
 def _set_auth_cookies(resp: Response, access_token: str, refresh_token: str) -> None:
+    csrf_token = secrets.token_urlsafe(32)
     resp.set_cookie(
         key=AUTH_COOKIE,
         value=access_token,
@@ -60,6 +61,16 @@ def _set_auth_cookies(resp: Response, access_token: str, refresh_token: str) -> 
         secure=COOKIE_SECURE,
         samesite="lax",
         max_age=REFRESH_COOKIE_MAX_AGE,
+        path="/",
+    )
+
+    resp.set_cookie(
+        key=CSRF_COOKIE,
+        value=csrf_token,
+        httponly=False,
+        secure=COOKIE_SECURE,
+        samesite="lax",
+        max_age=REFRESH_COOKIE_MAX_AGE, # 30 days
         path="/",
     )
 
@@ -315,7 +326,11 @@ def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh")
-def refresh(request: Request, db: Session = Depends(get_db)):
+def refresh(
+    request: Request, 
+    _csrf: None = Depends(require_csrf),
+    db: Session = Depends(get_db)
+):
     """Issue new access (and refresh) tokens using the refresh cookie. Silent refresh."""
     refresh_token = request.cookies.get(REFRESH_COOKIE)
     if not refresh_token:
@@ -373,11 +388,12 @@ def me(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/logout")
-def logout(request: Request, db: Session = Depends(get_db)):
+def logout(request: Request, _csrf: None = Depends(require_csrf), db: Session = Depends(get_db)):
     _revoke_refresh_session(db, request.cookies.get(REFRESH_COOKIE))
     resp = Response(content='{"detail":"Logged out"}', media_type="application/json")
     resp.delete_cookie(key=AUTH_COOKIE, path="/")
     resp.delete_cookie(key=REFRESH_COOKIE, path="/")
+    resp.delete_cookie(key=CSRF_COOKIE, path="/")
     return resp
     
 

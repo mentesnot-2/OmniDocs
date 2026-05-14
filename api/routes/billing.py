@@ -4,7 +4,7 @@ import stripe
 
 
 from api.database import get_db
-from api.dependencies import get_current_user
+from api.dependencies import get_current_user, require_csrf
 from api.models import User
 from api.services.billing import create_checkout_session, create_portal_session
 from config.settings import STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
@@ -35,7 +35,7 @@ def get_user_by_customer_id(db: Session, customer_id: str | None) -> User | None
 
 @router.post("/checkout")
 @limiter.limit("10/minute")
-def start_checkout(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+def start_checkout(request: Request, _csrf: None = Depends(require_csrf), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     try:
         customer_id = get_or_create_customer(current_user)
         if not current_user.stripe_customer_id:
@@ -54,7 +54,7 @@ def start_checkout(request: Request, db: Session = Depends(get_db), current_user
 
 @router.post("/portal")
 @limiter.limit("10/minute")
-def open_portal(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+def open_portal(request: Request, _csrf: None = Depends(require_csrf), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
     try:
         if not current_user.stripe_customer_id:
             raise HTTPException(status_code=400, detail="No Stripe customer found")
