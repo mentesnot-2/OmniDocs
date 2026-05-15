@@ -43,6 +43,31 @@ REFRESH_COOKIE_MAX_AGE = 60 * 60 * 24 * 7  # 7 days
 OAUTH_STATE_COOKIE = "omnidocs_oauth_state"
 
 
+def _revoke_refresh_session_chain(
+    db: Session,
+    starting_jti: str | None,
+
+) -> None:
+    """
+    Revoke a rotated refresh-token chain starting from a given JTI.
+
+    This is used when a revoked refresh token is presented again, which indicates possible token theft/replay. we revoke every descendant session reachable through replaced_by_jti.
+    """
+    current_jti = starting_jti
+    now = datetime.utcnow()
+    
+    while current_jti:
+        session = db.query(RefreshSession).filter(RefreshSession.jti == current_jti).first()
+        if not session:
+            break
+        
+        next_jti = session.replaced_by_jti
+        if session.revoked_at is None:
+            session.revoked_at = now
+        current_jti = next_jti
+    db.commit()
+
+
 def _set_auth_cookies(resp: Response, access_token: str, refresh_token: str) -> None:
     csrf_token = secrets.token_urlsafe(32)
     resp.set_cookie(
