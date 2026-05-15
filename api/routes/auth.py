@@ -370,10 +370,30 @@ def refresh(
             detail="Invalid or expired refresh token",
         )
     session = db.query(RefreshSession).filter(RefreshSession.jti == payload["jti"]).first()
-    if not session or session.user_id != int(payload["sub"]) or not session.is_active():
+    if not session or session.user_id != int(payload["sub"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
+        )
+    # Reuse detection: a revoked refresh token being presented again
+    # indicates possible theft/replay. Revoke the active descendant
+    # chain and force re-authentication.
+
+    if session.revoked_at is not None:
+        logger.warning(
+            "Detected refresh-token reuse for user_id=%s jti=%s",
+            session.user_id,
+            session.jti,
+        )
+        _revoke_refresh_session_chain(db, session.jti)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token"
+        )
+    if not session.is_active():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token"
         )
     user_id = int(payload["sub"])
     user = db.query(User).get(user_id)
