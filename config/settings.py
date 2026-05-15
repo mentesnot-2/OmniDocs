@@ -53,7 +53,7 @@ if len(JWT_SECRET_KEY) < 32:
 
 
 EMAIL_VERIFICATION_REQUIRED=os.getenv("EMAIL_VERIFICATION_REQUIRED","false").lower() == "true"
-EMAIL_SENDER=os.getenv("EMAIL_SENDER","mentesnotsibatu63@gmail.com")
+EMAIL_SENDER=os.getenv("EMAIL_SENDER","")
 EMAIL_VERIFICATION_BASE_URL=os.getenv("EMAIL_VERIFICATION_BASE_URL","http://localhost:3000")
 
 # Mailtrap SMTP settings (preferred)

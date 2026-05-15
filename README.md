@@ -748,7 +748,7 @@ Coverage reporting is not configured yet; see `NEEDS_IMPROVEMENT.md`.
 
 ## Deployment
 
-There is no committed CI/CD pipeline yet (the repo contains no `.github/workflows/` or other CI definitions). Planned automation is listed in `NEEDS_IMPROVEMENT.md`.
+There is no committed CI/CD pipeline yet (the repo contains no `.github/workflows/` or other CI definitions). Planned automation on the way.
 
 ### Container deployment
 
@@ -766,7 +766,7 @@ For production:
 
 ### Infrastructure overview
 
-Your production topology (provider regions services ingress) should be documented for your deployment; use `NEEDS_IMPROVEMENT.md` as a checklist if you want to track that write-up.
+This is to and its not completed yet
 
 ---
 
@@ -817,12 +817,10 @@ These cover the dominant query patterns (per-user lookups, refresh validation, m
 - **AV scanning and parser sandboxing.** Phase-2 hardening — ClamAV (or similar) virus scanning of uploads and isolated parser workers — is on the roadmap but not implemented.
 - **HTML sanitization.** Parsed HTML content is currently injected into chunks as-is; HTML sanitization for indexed text is not yet hardened.
 - **CSRF Origin check is heuristic.** `origin.endswith(host)` is intentionally permissive for development. Production deployments behind a reverse proxy should consider an explicit allow-list of trusted origins.
-- **Default `EMAIL_SENDER`.** `config/settings.py` ships with a developer placeholder address; production deployments must override `EMAIL_SENDER`.
 - **No structured request logging or tracing.** A simple stdout logger is configured.
 - **No PII redaction in logs.** Exception logs include user IDs and emails — adjust `api/utils/logging_config.py` if your compliance posture requires otherwise.
 - **Refresh sessions are not pruned.** Expired or revoked rows accumulate.
 
-See `NEEDS_IMPROVEMENT.md` for a consolidated backlog tied to several of these items.
 
 ---
 
