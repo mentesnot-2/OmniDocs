@@ -42,6 +42,8 @@ LLM_MODEL = os.getenv("LLM_MODEL", "gemini-flash-latest")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")  # gemini | openai
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")  # Optional, only if LLM_PROVIDER=openai
 
+# JWT config: single source of truth for all auth/security modules
+
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 if not JWT_SECRET_KEY:
