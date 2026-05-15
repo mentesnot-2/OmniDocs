@@ -5,6 +5,7 @@ Run: uvicorn api.main:app --reload
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from api.routes import auth, documents, chat, admin, usage,billing
 from api.database import engine,Base
 from api.models import User
@@ -18,6 +19,8 @@ from config import (
     CORS_ALLOWED_ORIGINS,
     CORS_ALLOWED_METHODS,
     CORS_ALLOWED_HEADERS,
+    TRUST_PROXY_HEADERS,
+    PROXY_TRUSTED_HOSTS
 )
 
 from api.services.runtime_services import  (
@@ -44,6 +47,11 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+if TRUST_PROXY_HEADERS:
+    app.add_middleware(
+        ProxyHeadersMiddleware,
+        trusted_hosts=PROXY_TRUSTED_HOSTS
+    )
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ALLOWED_ORIGINS,
