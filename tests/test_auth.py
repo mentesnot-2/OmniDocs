@@ -173,3 +173,51 @@ def test_google_oauth_callback_blocks_unsafe_email_auto_link(client, db_session,
     db_session.expire_all()
     same_user = db_session.get(User, existing_user.id)
     assert same_user.oauth_sub is None
+
+
+def test_refresh_token_reuse_revokes_descendant_chain(client, db_session, make_user):
+    user = make_user()
+
+    login_response = client.post(
+        "/auth/login",
+        json={"email": user.email, "password": user._raw_password},
+    )
+
+    refresh_token_1 = login_response.cookies.get("omnidocs_refresh")
+    payload_1 = decode_refresh_token(refresh_token_1)
+
+    refresh_response = client.post(
+        "/auth/refresh",
+        cookies={"omnidocs_refresh": refresh_token_1},
+    )
+
+    assert refresh_response.status_code == 200
+
+    refresh_token_2 = refresh_response.cookies.get("omnidocs_refresh")
+    payload_2 = decode_refresh_token(refresh_token_2)
+
+
+    # Replay the old revoked token
+
+    replay_response = client.post(
+        "/auth/refresh",
+        cookies={"omnidocs_refresh": refresh_token_1},
+    )
+
+    assert replay_response.status_code == 401
+
+    db_session.expire_all()
+
+    old_session = db_session.query(RefreshSession).filter(RefreshSession.jti == payload_1["jti"]).one()
+    new_session = db_session.query(RefreshSession).filter(RefreshSession.jti == payload_2["jti"]).one()
+
+    assert old_session.revoked_at is not None
+    assert new_session.revoked_at is not None
+
+
+    # The rotated token should no longer work after reuse detection
+    response_after_reuse = client.post(
+        "/auth/refresh",
+        cookies={"omnidocs_refresh": refresh_token_2},
+    )
+    assert response_after_reuse.status_code == 401
