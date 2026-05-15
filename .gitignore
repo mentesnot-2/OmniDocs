@@ -46,7 +46,6 @@ desktop.ini
 htmlcov/
 .tox/
 
-# ─── Project-specific (local notes & instructions) ──
 instruction.md
 LEARNING_GUIDE.md
 ASSESSMENT_REPORT.md

@@ -95,7 +95,7 @@ STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET=os.getenv("STRIPE_WEBHOOK_SECRET","")
 STRIPE_PRICE_PRO_MONTHLY=os.getenv("STRIPE_PRICE_PRO_MONTHLY","")
 BILLING_SUCCESS_URL = os.getenv("BILLING_SUCCESS_URL","http://localhost:3000/dashboard/billing?success=1")
-BILLING_CANCEL_URL = os.getenv("BILLING_CANCEL_URL","http://localhost:3000/dashboard/billing/canceled=1")
+BILLING_CANCEL_URL = os.getenv("BILLING_CANCEL_URL","http://localhost:3000/dashboard/billing/?canceled=1")
 
 
 APP_ENV = os.getenv("APP_ENV", "development").lower()
