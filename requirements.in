@@ -26,6 +26,7 @@ uvicorn[standard]
 python-multipart
 httpx
 slowapi
+redis
 
 # Auth
 python-jose[cryptography]

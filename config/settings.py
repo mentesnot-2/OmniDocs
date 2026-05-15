@@ -63,6 +63,13 @@ MAILTRAP_PORT = int(os.getenv("MAILTRAP_PORT", "2525"))
 MAILTRAP_USERNAME = os.getenv("MAILTRAP_USERNAME", "")
 MAILTRAP_PASSWORD = os.getenv("MAILTRAP_PASSWORD", "")
 
+RATE_LIMIT_STORAGE_URI = os.getenv("RATE_LIMIT_STORAGE_URI", "memory://")
+TRUST_PROXY_HEADERS = os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true"
+PROXY_TRUSTED_HOSTS = [
+    host.strip()
+    for host in os.getenv("PROXY_TRUSTED_HOSTS", "127.0.0.1,localhost").split(",")
+    if host.strip()
+]
 # Generic SMTP settings (fallback). If MAILTRAP_* exists, use it automatically.
 SMTP_HOST = MAILTRAP_HOST or os.getenv("SMTP_HOST", "localhost")
 SMTP_PORT = MAILTRAP_PORT if MAILTRAP_HOST else int(os.getenv("SMTP_PORT", "25"))
