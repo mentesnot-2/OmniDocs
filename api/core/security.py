@@ -1,5 +1,7 @@
 """Password hashing and JWT handling."""
 
+import hashlib
+
 import bcrypt
 from datetime import datetime, timedelta
 from uuid import uuid4
@@ -13,6 +15,11 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 # bcrypt has a 72-byte limit; truncate to avoid ValueError
 BCRYPT_MAX_PASSWORD_BYTES = 72
+
+
+def hash_verification_token(plaintext_token: str) -> str:
+    """SHA-256 hex digest for storing email verification secrets (plaintext only in outbound email)."""
+    return hashlib.sha256(plaintext_token.encode("utf-8")).hexdigest()
 
 
 def hash_password(password: str) -> str:

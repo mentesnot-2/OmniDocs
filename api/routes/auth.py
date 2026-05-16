@@ -14,6 +14,7 @@ from api.models import RefreshSession, User
 from api.schemas.user import UserSignup, UserLogin, UserResponse, TokenResponse
 from api.core.security import (
     hash_password,
+    hash_verification_token,
     verify_password,
     create_access_token,
     create_refresh_token_with_jti,
@@ -188,14 +189,16 @@ def signup(request: Request, data: UserSignup, db: Session = Depends(get_db)):
     )
 
     user.is_verified = not EMAIL_VERIFICATION_REQUIRED
+    plain_verification_token: str | None = None
     if EMAIL_VERIFICATION_REQUIRED:
-        user.verification_token = User.generate_verification_token()
+        plain_verification_token = User.generate_verification_token()
+        user.verification_token = hash_verification_token(plain_verification_token)
         user.verification_expires_at = User.verification_expiry()
     db.add(user)
     db.commit()
     db.refresh(user)
-    if EMAIL_VERIFICATION_REQUIRED:
-        verify_link = f"{EMAIL_VERIFICATION_BASE_URL}/verify-email?token={user.verification_token}"
+    if EMAIL_VERIFICATION_REQUIRED and plain_verification_token is not None:
+        verify_link = f"{EMAIL_VERIFICATION_BASE_URL}/verify-email?token={plain_verification_token}"
         try:
             send_email(
                 to=user.email,
@@ -444,7 +447,8 @@ def logout(request: Request, _csrf: None = Depends(require_csrf), db: Session = 
 
 @router.get("/verify/{token}")
 def verify_email(token:str,db:Session=Depends(get_db)):
-    user = db.query(User).filter(User.verification_token == token).first()
+    token_digest = hash_verification_token(token)
+    user = db.query(User).filter(User.verification_token == token_digest).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

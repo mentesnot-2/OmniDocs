@@ -18,6 +18,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True),server_default=func.now())
 
     is_verified = Column(Boolean, nullable=False,server_default="0")
+    # SHA-256 hex digest of the secret sent in the verification link — never store plaintext token.
     verification_token = Column(String(255),unique=True,index=True,nullable=True)
     verification_expires_at = Column(DateTime(timezone=True),nullable=True)
 
