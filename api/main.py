@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from api.routes import auth, documents, chat, admin, usage,billing
 from api.database import engine,Base
-from api.models import User
+from api.models import StripeProcessedEvent  # noqa: F401 — ensures stripe_processed_events table in Base.metadata.create_all
 from api.database import get_db
 from api.utils.logging_config import logger
 from slowapi import _rate_limit_exceeded_handler

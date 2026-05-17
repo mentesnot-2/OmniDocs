@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 
 from api.core.security import hash_password
 from api.database import Base, get_db
-from api.models import User
+from api.models import User, StripeProcessedEvent  # noqa: F401 — register Stripe webhook idempotency table
 
 
 class DummyEmbeeddingGenerator:
