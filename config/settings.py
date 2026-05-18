@@ -99,6 +99,9 @@ BILLING_CANCEL_URL = os.getenv("BILLING_CANCEL_URL","http://localhost:3000/dashb
 
 
 APP_ENV = os.getenv("APP_ENV", "development").lower()
+# When True, application logs may include raw email addresses and filenames.
+# Keep False in production (GDPR-friendly defaults); enable only for local debugging.
+LOG_PII = os.getenv("LOG_PII", "false").lower() == "true"
 COOKIE_SECURE = os.getenv(
     "COOKIE_SECURE",
     "true" if APP_ENV == "production" else "false"

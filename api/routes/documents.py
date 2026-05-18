@@ -1,6 +1,7 @@
 """Documents routes (upload, query)"""
 
 from api.utils.logging_config import logger
+from api.utils.log_pii import redact_filename_for_log
 from pathlib import Path
 from typing import List
 from pydantic import BaseModel
@@ -154,10 +155,11 @@ async def upload(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid filename.",
         )
+    file_log = redact_filename_for_log(safe_filename)
 
     ext = Path(safe_filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
-        logger.error(f"File {safe_filename} has an invalid extension. Allowed extensions are {ALLOWED_EXTENSIONS}.")
+        logger.error(f"File {file_log} has an invalid extension. Allowed extensions are {ALLOWED_EXTENSIONS}.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"File {safe_filename} has an invalid extension. Allowed extensions are {ALLOWED_EXTENSIONS}.",
@@ -189,7 +191,7 @@ async def upload(
                 max_bytes=max_bytes,
             )
         except FileTooLargeError:
-            logger.error(f"Document {safe_filename} is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.")
+            logger.error(f"Document {file_log} is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.")
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail=f"Document is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.",
@@ -201,7 +203,7 @@ async def upload(
         validate_uploaded_file_content(safe_filename, content)
         enforce_storage_limit(current_user, total_bytes)
         size_mb = total_bytes / (1024 * 1024)
-        logger.info(f"Document {safe_filename} uploaded successfully. Size: {size_mb:.2f} MB.")
+        logger.info(f"Document {file_log} uploaded successfully. Size: {size_mb:.2f} MB.")
 
         with temp_upload_path.open("rb") as upload_stream:
             storage.save_fileobj(current_user.id, safe_filename, upload_stream)
@@ -212,16 +214,16 @@ async def upload(
 
         try:
             parsed = ingest_document(ingest_path)
-            logger.info(f"Document {safe_filename} parsed successfully.")
+            logger.info(f"Document {file_log} parsed successfully.")
         except Exception:
-            logger.exception("Failed to parse document %s", safe_filename)
+            logger.exception("Failed to parse document %s", file_log)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Failed to parse document.",
             )
 
         if not parsed.content.strip():
-            logger.error(f"Document {safe_filename} is empty or contains no text.")
+            logger.error(f"Document {file_log} is empty or contains no text.")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Document is empty or contains no text.",
@@ -229,7 +231,7 @@ async def upload(
         
         chunks = chunk_document(parsed)
         if not chunks:
-            logger.error(f"No chunks produced from document {safe_filename}.")
+            logger.error(f"No chunks produced from document {file_log}.")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No chunks produced from document.",
@@ -262,7 +264,7 @@ async def upload(
                 storage.delete_file(current_user.id, safe_filename)
             except Exception as cleanup_exc:
                 logger.warning(
-                    f"Failed to clean up stored file {safe_filename} after upload failure: {cleanup_exc}"
+                    f"Failed to clean up stored file {file_log} after upload failure: {cleanup_exc}"
                 )
 
    

@@ -33,6 +33,7 @@ from config.settings import (
 )
 from api.utils.email import send_email, EmailDeliveryError
 from api.utils.logging_config import logger
+from api.utils.log_pii import redact_email_for_log
 from api.rate_limiter import limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -303,7 +304,7 @@ async def oauth_google_callback(request: Request, code: str | None = None, state
             ensure_user_is_active(existing_user)
             logger.warning(
                 "Blocked Google OAuth auto-link for existing account email=%s user_id=%s",
-                existing_user.email,
+                redact_email_for_log(existing_user.email),
                 existing_user.id,
             )
             return _oauth_error_response(

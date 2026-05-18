@@ -1,6 +1,7 @@
 import smtplib
 from email.message import EmailMessage
 from api.utils.logging_config import logger
+from api.utils.log_pii import redact_email_for_log
 from config.settings import (
     EMAIL_SENDER,
     SMTP_HOST,
@@ -33,6 +34,6 @@ def send_email(to:str,subject:str,body:str):
                 server.login(SMTP_USERNAME,SMTP_PASSWORD)
             server.send_message(msg)
     except Exception as e:
-        logger.exception("Failed to send email to %s", to)
+        logger.exception("Failed to send email to %s", redact_email_for_log(to))
         raise EmailDeliveryError("Failed to send verification email.") from e
 
