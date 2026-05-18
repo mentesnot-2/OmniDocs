@@ -1,14 +1,16 @@
-import stripe
-from config.settings import STRIPE_SECRET_KEY, STRIPE_PRICE_PRO_MONTHLY, BILLING_SUCCESS_URL, BILLING_CANCEL_URL
 import logging
 from typing import Optional
 
+import stripe
+
+from config.settings import STRIPE_PRICE_PRO_MONTHLY, BILLING_SUCCESS_URL, BILLING_CANCEL_URL
+
 logger = logging.getLogger(__name__)
 
+# stripe.api_key is configured in api.services.stripe_runtime.init_stripe() at app startup.
 
-stripe.api_key = STRIPE_SECRET_KEY
 
-def create_checkout_session(customer_id:str, user_id:int) -> Optional[str]:
+def create_checkout_session(customer_id: str, user_id: int) -> Optional[str]:
     try:
         session = stripe.checkout.Session.create(
             mode="subscription",

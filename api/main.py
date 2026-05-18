@@ -3,6 +3,8 @@ OmniDocs FastAPI backend.
 Run: uvicorn api.main:app --reload
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -35,13 +37,25 @@ get_answer_generator()
 
 logger.info("Starting OmniDocs API")
 
-#Create tables on startup
+# Create tables on startup
 ensure_dirs()
 Base.metadata.create_all(bind=engine)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Configure third-party SDKs once per process (after settings load)."""
+    from api.services.stripe_runtime import init_stripe
+
+    init_stripe()
+    yield
+
+
 app = FastAPI(
     title="OmniDocs API",
     description="API for OmniDocs RAG system",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.state.limiter = limiter

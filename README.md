@@ -224,6 +224,7 @@ OmniDocs/
 │   ├── schemas/                    # Pydantic request/response models
 │   ├── services/
 │   │   ├── billing.py              # Stripe Checkout + Portal helpers
+│   │   ├── stripe_runtime.py       # Stripe SDK init + validation at app lifespan
 │   │   ├── file_validation.py      # Magic-byte, MIME, and OOXML structural validation
 │   │   ├── ingestion_file.py       # Streaming temp-file writer with size cap
 │   │   ├── runtime_services.py     # lru_cache-backed embedder/retriever/generator singletons
@@ -600,7 +601,7 @@ All configuration is environment-driven via `.env`. The table below documents ev
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | No | empty | Declared in settings but no GitHub OAuth route exists yet (see `NEEDS_IMPROVEMENT.md`). |
 | `BACKEND_BASE_URL` | No | `http://127.0.0.1:8000` | Reserved for backend self-references. |
 | `FRONTEND_BASE_URL` | No | `http://localhost:3000` | Used for OAuth callback URL construction and redirects. |
-| `STRIPE_SECRET_KEY` | Required for billing routes | empty | Stripe API key. |
+| `STRIPE_SECRET_KEY` | Required when `APP_ENV=production` (startup raises if missing); otherwise optional but billing REST calls fail without it | empty | Stripe secret key; applied once via `api/services/stripe_runtime.init_stripe()` on app startup. |
 | `STRIPE_WEBHOOK_SECRET` | Required for `/billing/webhook` | empty | Used to verify webhook signatures. |
 | `STRIPE_PRICE_PRO_MONTHLY` | Required for `/billing/checkout` | empty | Stripe Price ID for the Pro plan. |
 | `BILLING_SUCCESS_URL` / `BILLING_CANCEL_URL` | No | `http://localhost:3000/dashboard/billing?success=1` / `http://localhost:3000/dashboard/billing/?canceled=1` | Stripe Checkout redirects (defaults from `config/settings.py`). |

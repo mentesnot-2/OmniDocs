@@ -7,14 +7,14 @@ from api.database import get_db
 from api.dependencies import get_current_user, require_csrf
 from api.models import User, StripeProcessedEvent
 from api.services.billing import create_checkout_session, create_portal_session
-from config.settings import STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
+from config.settings import STRIPE_WEBHOOK_SECRET
 from config.plans import DEFAULT_PLAN_ID
 from api.rate_limiter import limiter
 from api.utils.logging_config import logger
 
 
 router = APIRouter(prefix="/billing", tags=["billing"])
-stripe.api_key = STRIPE_SECRET_KEY
+# stripe.api_key is set once in api.services.stripe_runtime.init_stripe() (FastAPI lifespan).
 
 
 def get_or_create_customer(user: User) -> str:
